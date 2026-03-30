@@ -1634,9 +1634,9 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
     ctx.beginPath();ctx.moveTo(px-w,py-h-2);ctx.lineTo(px+w,py-h-2);ctx.lineTo(px,py-2);ctx.closePath();ctx.fill();
   };
 
-  const drawPage = (canvas,img,pageIdx) => {
-    if(!canvas||!img||!img.complete) return;
-    const w=img.clientWidth,h=img.clientHeight;
+  const drawPage = (canvas,el,pageIdx) => {
+    if(!canvas||!el) return;
+    const w=el.clientWidth,h=el.clientHeight;
     if(!w||!h) return;
     canvas.width=w;canvas.height=h;canvas.style.width=w+'px';canvas.style.height=h+'px';
     const ctx=canvas.getContext('2d');ctx.clearRect(0,0,w,h);
@@ -1648,7 +1648,8 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
     if(rightPage!==null) drawPage(canvasRef2.current,imgRef2.current,rightPage);
   },[markers,currentPage,rightPage]);
 
-  useEffect(()=>{draw();},[draw]);
+  // Background-image divs don't have onLoad — trigger draw when page changes
+  useEffect(()=>{ const t=setTimeout(()=>draw(),80); return ()=>clearTimeout(t); },[draw,currentPage]);
   useEffect(()=>{setLoaded(false);setLoaded2(false);},[currentPage]);
   useEffect(()=>{
     const ro=new ResizeObserver(()=>draw());
@@ -1737,22 +1738,33 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
       </div>
 
       <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',flexDirection:'row'}}>
-        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
-          <img ref={imgRef} src={pageImages[currentPage]}
-            onLoad={()=>{setLoaded(true);requestAnimationFrame(()=>draw());}}
-            {...makeTouchHandlers(currentPage,()=>imgRef.current)}
-            style={{width:'100%',display:'block',cursor:'crosshair',userSelect:'none'}}
-            draggable={false} />
-          <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,pointerEvents:'none'}} />
+        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}
+          ref={imgRef}
+          {...makeTouchHandlers(currentPage,()=>imgRef.current)}
+          onLoad={()=>{setLoaded(true);requestAnimationFrame(()=>draw());}}
+          style={{
+            backgroundImage:`url(${pageImages[currentPage]})`,
+            backgroundSize:'contain',backgroundRepeat:'no-repeat',
+            backgroundPosition:'center',
+            cursor:'crosshair',userSelect:'none',WebkitUserSelect:'none',
+            WebkitTouchCallout:'none', height:'100%',
+          }}>
+          <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none'}} />
         </div>
         {showTwoPages&&rightPage!==null&&(
-          <div style={{position:'relative',flex:1,minWidth:0,borderLeft:`1px solid ${C.bord}`,overflowY:'auto'}}>
-            <img ref={imgRef2} src={pageImages[rightPage]}
-              onLoad={()=>{setLoaded2(true);requestAnimationFrame(()=>draw());}}
+          <div style={{position:'relative',flex:1,minWidth:0,borderLeft:`1px solid ${C.bord}`,overflow:'hidden',height:'100%'}}>
+            <div ref={imgRef2}
               {...makeTouchHandlers(rightPage,()=>imgRef2.current)}
-              style={{width:'100%',display:'block',cursor:'crosshair',userSelect:'none'}}
-              draggable={false} />
-            <canvas ref={canvasRef2} style={{position:'absolute',top:0,left:0,pointerEvents:'none'}} />
+              style={{
+                width:'100%',height:'100%',
+                backgroundImage:`url(${pageImages[rightPage]})`,
+                backgroundSize:'contain',backgroundRepeat:'no-repeat',
+                backgroundPosition:'center',
+                cursor:'crosshair',userSelect:'none',WebkitUserSelect:'none',
+                WebkitTouchCallout:'none',
+              }}>
+              <canvas ref={canvasRef2} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none'}} />
+            </div>
           </div>
         )}
       </div>
