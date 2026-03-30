@@ -743,7 +743,7 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
         padding: '8px 16px', flexShrink: 0, borderBottom: `1px solid ${C.bord}`,
         gap: 12, flexWrap: 'wrap' }}>
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 18, color: C.cream }}>
-          Tap the <em>first note</em> of each unit in order &mdash; at least 2 markers needed.
+          Tap <em>above</em> the first note of each unit in order &mdash; at least 2 markers needed.
         </div>
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16,
           letterSpacing: '0.08em', color: C.accent }}>
@@ -1051,38 +1051,71 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   if (land) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: C.ink }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '4px 14px', flexShrink: 0, borderBottom: `2px solid ${C.accent}` }}>
-          <BackBtn onClick={onBack} label="← SETUP" />
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 14,
-            letterSpacing: '0.12em', color: C.cream }}>
-            PHASE {step.phase} · STEP {safeIdx + 1}/{steps.length}
+
+        {/* Top bar — same as portrait */}
+        <div style={{ flexShrink: 0, borderBottom: `2px solid ${C.accent}`, background: C.ink }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 12px' }}>
+            <button onClick={onBack} style={{
+              background: 'none', border: `1px solid ${C.bord2}`,
+              color: C.cream, padding: '4px 10px', cursor: 'pointer',
+              fontFamily: "'Bebas Neue', sans-serif", fontSize: '0.85rem',
+              letterSpacing: '0.08em', flexShrink: 0,
+            }}>EXIT</button>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', gap: 12 }}>
+              <div style={{ fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 'clamp(1.4rem, 4vw, 2rem)',
+                color: atGoal ? C.accent : C.cream, lineHeight: 1 }}>
+                ♩ = {step.tempo}
+                {pastGoal && <span style={{ fontSize: '0.4em', color: C.muted,
+                  marginLeft: 8, verticalAlign: 'middle' }}>PAST GOAL</span>}
+              </div>
+              <button onClick={() => setMetroOn(m => !m)} style={{
+                background: metroOn ? C.accent : '#2a231d',
+                border: `2px solid ${metroOn ? C.accent : '#666'}`,
+                color: 'white', width: 38, height: 38,
+                cursor: 'pointer', fontSize: '1.1rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                {metroOn ? '⏸' : '▶'}
+              </button>
+            </div>
+            <div style={{ minWidth: 52 }} />
           </div>
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 14,
-            color: atGoal ? C.accent : C.cream }}>
-            {atGoal ? '★ GOAL' : `GOAL ${goalTempo}`}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 8, padding: '2px 12px 4px',
+            fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic',
+            fontSize: 13, color: C.cream }}>
+            <span>Play from</span>
+            <span style={{ display: 'inline-block', width: 0, height: 0,
+              borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
+              borderTop: '8px solid #3db06a', transform: 'rotate(180deg)', marginTop: 1 }} />
+            <span style={{ color: C.muted }}>to</span>
+            <span style={{ display: 'inline-block', width: 0, height: 0,
+              borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
+              borderTop: '8px solid #e05555', transform: 'rotate(180deg)', marginTop: 1 }} />
           </div>
         </div>
+
         {progressBar}
         {photoBlock}
-        <div style={{ display: 'flex', alignItems: 'stretch', gap: 6,
-          padding: '5px 10px', flexShrink: 0,
-          borderTop: `1px solid ${C.bord}`, background: C.ink }}>
-          {tempoBlock(true)}
-          <Btn onClick={() => setIdx(i => Math.max(0, i - 1))} disabled={idx === 0}
-            style={{ flex: 1 }}>←</Btn>
-          <Btn onClick={() => setMetroOn(m => !m)} active={metroOn} style={{ flex: 1 }}>
-            {metroOn ? '⏸' : '▶'}
-          </Btn>
-          <Btn onClick={() => setIdx(nextPhaseIdx)} disabled={!hasNextPhase}
-            style={{ flex: 2, borderColor: hasNextPhase ? C.accent : C.bord,
-              background: hasNextPhase ? C.accent : 'transparent',
-              color: hasNextPhase ? 'white' : C.dim }}>
+
+        {/* Bottom bar — same as portrait */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 0,
+          flexShrink: 0, borderTop: `2px solid ${C.bord}` }}>
+          <Btn onClick={() => setIdx(nextPhaseIdx)} disabled={!hasNextPhase} full
+            style={{ padding: '12px 8px', fontSize: '1rem', borderRadius: 0,
+              border: 'none', borderRight: `1px solid ${C.bord}`,
+              background: hasNextPhase ? C.panel : 'transparent',
+              color: hasNextPhase ? C.cream : C.dim }}>
             NEXT PHASE »
           </Btn>
           <Btn onClick={() => setIdx(i => Math.min(steps.length - 1, i + 1))}
-            disabled={idx >= steps.length - 1}
-            style={{ flex: 3, background: C.accent, color: 'white', borderColor: C.accent }}>
+            disabled={idx >= steps.length - 1} full
+            style={{ padding: '12px 8px', fontSize: '1.1rem', borderRadius: 0,
+              border: 'none', background: idx >= steps.length - 1 ? 'transparent' : C.accent,
+              color: 'white' }}>
             NEXT STEP →
           </Btn>
         </div>
