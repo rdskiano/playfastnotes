@@ -106,6 +106,16 @@ function useOrientation() {
   return land;
 }
 
+function useIsLarge() {
+  const [large,setLarge] = useState(()=>window.innerWidth>=768);
+  useEffect(()=>{
+    const u = ()=>setLarge(window.innerWidth>=768);
+    window.addEventListener('resize',u);
+    return ()=>window.removeEventListener('resize',u);
+  },[]);
+  return large;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    ICU STEP GENERATOR
 ═══════════════════════════════════════════════════════════════════════ */
@@ -827,6 +837,7 @@ function StrategyScreen({ piece, onICU, onMUR, onBack }) {
 ═══════════════════════════════════════════════════════════════════════ */
 function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
   const land = useOrientation();
+  const isLarge = useIsLarge();
 
   // ── State ──────────────────────────────────────────────────────────
   const isLoadedExercise = !!savedExercise && !piece;
@@ -843,6 +854,8 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
   const [generated,setGenerated]     = useState(false);
   const [docName,setDocName]         = useState(savedExercise?.doc_name||'');
   const [saving,setSaving]           = useState(false);
+  const [playingIdx,setPlayingIdx]   = useState(-1);
+  const playTimerRef = useRef(null);
   const [saveMsg,setSaveMsg]         = useState('');
   const [currentPage,setCurrentPage] = useState(0);
   const [insertAt,setInsertAt]       = useState(-1);
@@ -1031,10 +1044,17 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
     selNotes.forEach((n,i)=>setTimeout(()=>playNote(n),i*550));
   };
 
-  const playExercise = () => {
+  const stopPlayback = () => {
+    if(playTimerRef.current){clearTimeout(playTimerRef.current);playTimerRef.current=null;}
+    setPlayingIdx(-1);
+  };
+
+  const playExerciseAt = (idx) => {
+    if(playingIdx===idx){stopPlayback();return;}
+    stopPlayback();
     if(!exercises.length) return;
     const DUR_BEATS={'w':4,'h.':3,'h':2,'q.':1.5,'q':1,'8.':0.75,'8':0.5,'16.':0.375,'16':0.25,'32':0.125};
-    const pat=exercises[exIdx].pat;const bpm=80;const spb=60/bpm;
+    const pat=exercises[idx].pat;const bpm=80;const spb=60/bpm;
     const ppr=pat.notes.filter(c=>c.slice(-1)!=='r').length;
     const reps=Math.min(ppr>0?Math.ceil(selNotes.length/ppr):1,32);
     let pi=0,t=0;const ac=getAC();
@@ -1047,14 +1067,12 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
         const base=code.replace('.','').replace('r','').replace('t','');
         const dotted=code.indexOf('.')!==-1;
         const beats=(DUR_BEATS[base+(dotted?'.':'')]||DUR_BEATS[base]||0.5)*(isTup?2/3:1);
-        if(!isRest){
-          if(pi<selNotes.length){scheduled.push({time:t,note:selNotes[pi]});pi++;}
-          else{done=true;return;}
-        }
+        if(!isRest){if(pi<selNotes.length){scheduled.push({time:t,note:selNotes[pi]});pi++;}else{done=true;return;}}
         t+=beats*spb;
       });
       if(pi>=selNotes.length) break;
     }
+    setPlayingIdx(idx);
     scheduled.forEach(({time,note})=>{
       const st=ac.currentTime+time;
       const f=440*Math.pow(2,(murMidi(note)+instrTranspose-69)/12);
@@ -1065,7 +1083,11 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
       g.gain.exponentialRampToValueAtTime(0.001,st+0.45);
       o.start(st);o.stop(st+0.5);
     });
+    playTimerRef.current=setTimeout(()=>setPlayingIdx(-1),(t+0.2)*1000);
   };
+
+  // Keep playExercise for single-exercise mode
+  const playExercise = () => playExerciseAt(exIdx);
 
   // ── Mic pitch detection ────────────────────────────────────────────
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -1228,34 +1250,71 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
   ) : null;
 
   // ── Exercise display ───────────────────────────────────────────────
-  const ExercisePanel = generated && exercises.length>0 && (
+  // Large screen: all exercises rendered at once, each with its own play button
+  // Small screen: one at a time with nav arrows
+  const ExercisePanelLarge = generated && exercises.length>0 && (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
-      {/* Nav bar */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        padding:'6px 14px',flexShrink:0,background:C.ink,
-        borderTop:`1px solid ${C.bord}`}}>
+        padding:'6px 14px',flexShrink:0,background:C.ink,borderBottom:`1px solid ${C.bord}`}}>
+        <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted}}>
+          {exercises.length} patterns
+        </div>
+        <Btn onClick={()=>setGenerated(false)} style={{fontSize:'0.75rem',padding:'5px 12px'}}>
+          ← EDIT PASSAGE
+        </Btn>
+        {isLoadedExercise && <Btn onClick={()=>{setShowAttach(s=>!s);if(!showAttach)loadAttachPieces();}}
+          style={{fontSize:'0.75rem',padding:'5px 12px',borderColor:C.bord2}}>
+          {showAttach?'CANCEL':'ATTACH SCORE'}
+        </Btn>}
+      </div>
+      {showAttach && (
+        <div style={{flexShrink:0,background:C.panel,borderBottom:`1px solid ${C.bord}`,padding:'8px 14px'}}>
+          {attachLoading && <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted}}>Loading...</span>}
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {attachPieces.map(p=>(
+              <button key={p.id} onClick={()=>setShowAttach(false)}
+                style={{background:C.panel,border:`1px solid ${C.bord2}`,color:C.cream,
+                  fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.8rem',
+                  letterSpacing:'0.08em',padding:'5px 12px',cursor:'pointer'}}>
+                {p.title||'Untitled'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <AllExercisesView exercises={exercises} selNotes={selNotes} clef={clef} murKey={key} playingIdx={playingIdx} onPlay={playExerciseAt} land={land} />
+    </div>
+  );
+
+  const ExercisePanelSmall = generated && exercises.length>0 && (
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+        padding:'6px 14px',flexShrink:0,background:C.ink,borderTop:`1px solid ${C.bord}`}}>
         <button onClick={()=>setExIdx(i=>Math.max(0,i-1))} disabled={exIdx===0}
           style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
             width:36,height:36,cursor:'pointer',fontSize:'1rem',opacity:exIdx===0?0.35:1}}>&#8592;</button>
-        <div style={{display:'flex',alignItems:'center',gap:12}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted}}>
             {exIdx+1} / {exercises.length}
           </span>
           <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.7rem',color:C.muted}}>
             {exercises[exIdx]?.pat.timeSig}
           </span>
-          <button onClick={playExercise}
-            style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
-              width:30,height:30,borderRadius:'50%',cursor:'pointer',fontSize:'0.75rem'}}>&#9654;</button>
+          <button onClick={()=>playExerciseAt(exIdx)}
+            style={{background:playingIdx===exIdx?C.accent:'none',border:`1px solid ${playingIdx===exIdx?C.accent:C.bord}`,
+              color:'white',width:30,height:30,borderRadius:'50%',cursor:'pointer',fontSize:'0.75rem'}}>
+            {playingIdx===exIdx?'⏸':'▶'}
+          </button>
         </div>
         <button onClick={()=>setExIdx(i=>Math.min(exercises.length-1,i+1))} disabled={exIdx===exercises.length-1}
           style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
             width:36,height:36,cursor:'pointer',fontSize:'1rem',opacity:exIdx===exercises.length-1?0.35:1}}>&#8594;</button>
       </div>
-      {/* Staff */}
       <div ref={exDivRef} style={{background:'white',flex:'1 1 0',overflowY:'auto',padding:'8px 12px'}} />
     </div>
   );
+
+  const ExercisePanel = isLarge ? ExercisePanelLarge : ExercisePanelSmall;
 
   // ── Input panel ────────────────────────────────────────────────────
   const InputPanel = (
@@ -1466,11 +1525,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
           )}
           <div style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflowY:'auto'}}>
             {generated ? ExercisePanel : InputPanel}
-            {generated && (
-              <div style={{padding:'8px 14px',flexShrink:0,borderTop:`1px solid ${C.bord}`}}>
-                <Btn onClick={()=>setGenerated(false)} full>&#8592; EDIT PASSAGE</Btn>
-              </div>
-            )}
+  
           </div>
         </div>
       ) : (
@@ -1487,6 +1542,60 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
           ) : InputPanel}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MUR — ALL EXERCISES VIEW (large screen)
+═══════════════════════════════════════════════════════════════════════ */
+function AllExercisesView({ exercises, selNotes, clef, murKey, playingIdx, onPlay, land }) {
+  const containerRef = useRef();
+
+  useEffect(()=>{
+    const ABCJS = window.ABCJS;
+    if(!ABCJS||!exercises.length||!containerRef.current) return;
+    const container = containerRef.current;
+    exercises.forEach((ex,i)=>{
+      const div = container.querySelector('#mur-ex-'+i);
+      if(!div) return;
+      const abc = buildAbcString(ex.pat, selNotes, clef, murKey);
+      try {
+        ABCJS.renderAbc(div, abc, {
+          scale:1.1,
+          staffwidth: Math.min((container.offsetWidth||700) - 60, 820),
+          paddingright:20,paddingleft:10,paddingbottom:8,paddingtop:8,
+          add_classes:true,
+          wrap:{minSpacing:1.2,maxSpacing:2.8,preferredMeasuresPerLine:land?4:3},
+        });
+        div.querySelectorAll('svg path,svg rect,svg ellipse,svg line,svg text').forEach(el=>{
+          el.style.fill='#1a1208';el.style.stroke='#1a1208';
+        });
+      } catch(e){}
+    });
+  },[exercises,selNotes,clef,murKey,land]);
+
+  return (
+    <div ref={containerRef} style={{background:'white',flex:'1 1 0',overflowY:'auto',padding:'8px 12px'}}>
+      {exercises.map((ex,i)=>(
+        <div key={i} style={{borderBottom:'1px solid #e8e0d4',paddingBottom:4,marginBottom:4}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,padding:'4px 0 2px'}}>
+            <button onClick={()=>onPlay(i)}
+              style={{background:playingIdx===i?'#8b3a1a':'none',
+                border:`1px solid ${playingIdx===i?'#8b3a1a':'#c8b89a'}`,
+                color:playingIdx===i?'white':'#5a4e42',
+                width:26,height:26,borderRadius:'50%',cursor:'pointer',
+                fontSize:'0.65rem',flexShrink:0,
+                display:'flex',alignItems:'center',justifyContent:'center'}}>
+              {playingIdx===i?'⏸':'▶'}
+            </button>
+            <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.65rem',color:'#9a8e82'}}>
+              {ex.pat.timeSig} &nbsp;&middot;&nbsp; {ex.pat.section.replace(' Rhythm Patterns','')}
+            </span>
+          </div>
+          <div id={'mur-ex-'+i} />
+        </div>
+      ))}
     </div>
   );
 }
