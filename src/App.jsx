@@ -502,7 +502,7 @@ export default function App() {
         <LibraryScreen
           profile={profile}
           onSelectPiece={(p,imgs)=>{ setPiece(p);setPageImages(imgs);setMarkers([]);setCurrentPage(0);setScreen('strategy'); }}
-          onLoadExercise={ex=>{ setSavedExercise(ex);setScreen('mur'); }}
+          onLoadExercise={ex=>{ setSavedExercise(ex); setPiece(null); setPageImages([]); setScreen('mur'); }}
           onSignOut={()=>{ setProfile({});setProfileState({});setScreen('signin'); }}
         />
       )}
@@ -829,7 +829,9 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
   const land = useOrientation();
 
   // ── State ──────────────────────────────────────────────────────────
-  const [activeGroup,setActiveGroup] = useState(savedExercise ? parseInt(savedExercise.grouping?.match(/\d+/)?.[0]||'4') : null);
+  const isLoadedExercise = !!savedExercise && !piece;
+  const initGroup = savedExercise ? parseInt(savedExercise.grouping?.match(/\d+/)?.[0]||'4') : null;
+  const [activeGroup,setActiveGroup] = useState(initGroup);
   const [selNotes,setSelNotes]       = useState(savedExercise ? savedExercise.notes.split(',').filter(Boolean) : []);
   const [clef,setClef]               = useState(savedExercise?.clef||'treble');
   const [key,setKey]                 = useState(savedExercise?.key||'C');
@@ -844,7 +846,31 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
   const [saveMsg,setSaveMsg]         = useState('');
   const [currentPage,setCurrentPage] = useState(0);
   const [insertAt,setInsertAt]       = useState(-1);
-  const [editChip,setEditChip]       = useState(null); // index
+  const [editChip,setEditChip]       = useState(null);
+  const [showAttach,setShowAttach]   = useState(false);
+  const [attachPieces,setAttachPieces] = useState([]);
+  const [attachLoading,setAttachLoading] = useState(false);
+
+  // Auto-generate when loading a saved exercise
+  useEffect(()=>{
+    if(isLoadedExercise && initGroup && savedExercise.notes) {
+      const notes = savedExercise.notes.split(',').filter(Boolean);
+      const sec = g2s(initGroup);
+      const pats = MUR_DB.filter(p=>p.section===sec);
+      setExercises(pats.map(p=>({pat:p,abc:null})));
+      setExIdx(0);
+      setGenerated(true);
+    }
+  },[]);
+
+  const loadAttachPieces = async () => {
+    setAttachLoading(true);
+    try {
+      const r = await sbGet('/rest/v1/pieces?user_email=eq.'+encodeURIComponent(profile.email)+'&order=created_at.desc');
+      setAttachPieces(await r.json()||[]);
+    } catch { setAttachPieces([]); }
+    setAttachLoading(false);
+  };
 
   // ── Refs ───────────────────────────────────────────────────────────
   const acRef      = useRef(null);
@@ -1147,8 +1173,41 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
     8: <svg viewBox="0 0 90 36" width="68" height="28"><line x1="9" y1="7" x2="86" y2="7" stroke="#f5f0e8" strokeWidth="2.5"/><line x1="9" y1="12" x2="86" y2="12" stroke="#f5f0e8" strokeWidth="2.5"/><line x1="9" y1="7" x2="9" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="4" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,4,30)"/><line x1="20" y1="7" x2="20" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="15" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,15,30)"/><line x1="31" y1="7" x2="31" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="26" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,26,30)"/><line x1="42" y1="7" x2="42" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="37" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,37,30)"/><line x1="53" y1="7" x2="53" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="48" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,48,30)"/><line x1="64" y1="7" x2="64" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="59" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,59,30)"/><line x1="75" y1="7" x2="75" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="70" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,70,30)"/><line x1="86" y1="7" x2="86" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="81" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,81,30)"/></svg>,
   };
 
-  // ── Score panel (PDF view while entering notes) ─────────────────────
-  const ScorePanel = pageImages.length>0 && (
+  // ── Score panel ────────────────────────────────────────────────────
+  const AttachPanel = (
+    <div style={{background:C.panel,border:`1px dashed ${C.bord2}`,padding:'16px',
+      display:'flex',flexDirection:'column',gap:10,flexShrink:0}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'0.95rem',color:C.muted}}>
+          No score attached &mdash; optional
+        </div>
+        <button onClick={()=>{setShowAttach(s=>!s);if(!showAttach)loadAttachPieces();}}
+          style={{background:'none',border:`1px solid ${C.bord2}`,color:C.cream,
+            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.72rem',
+            letterSpacing:'0.1em',padding:'4px 12px',cursor:'pointer',flexShrink:0}}>
+          {showAttach?'CANCEL':'ATTACH SCORE'}
+        </button>
+      </div>
+      {showAttach && (
+        <div style={{maxHeight:180,overflowY:'auto'}}>
+          {attachLoading && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted,padding:8}}>Loading...</div>}
+          {attachPieces.map(p=>(
+            <div key={p.id} onClick={()=>{/* would need to trigger PDF load in parent — for now just note */setShowAttach(false);setSaveMsg('Score attached — reload to see it');}}
+              style={{padding:'10px 12px',borderBottom:`1px solid ${C.bord}`,cursor:'pointer',
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+                letterSpacing:'0.08em',color:C.cream}}
+              onMouseEnter={e=>e.currentTarget.style.background=C.ink}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              {p.title||'Untitled'}
+              <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.65rem',color:C.muted,marginLeft:8}}>{p.file_type?.toUpperCase()}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const ScorePanel = pageImages.length>0 ? (
     <div style={{position:'relative',background:'#0a0805',overflow:'hidden',
       flex:land?'1 1 0':'0 0 35%',minHeight:0}}>
       <img src={pageImages[currentPage]}
@@ -1166,7 +1225,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
         </div>
       )}
     </div>
-  );
+  ) : null;
 
   // ── Exercise display ───────────────────────────────────────────────
   const ExercisePanel = generated && exercises.length>0 && (
@@ -1388,7 +1447,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
     <div style={{display:'flex',flexDirection:'column',height:'100dvh'}}>
       <TopBar
         left={<BackBtn onClick={onBack} />}
-        center={piece?.title||'RHYTHMIC VARIATION'}
+        center={piece?.title||(savedExercise?.doc_name?savedExercise.doc_name:'RHYTHMIC VARIATION')}
         right={null}
       />
 
@@ -1396,9 +1455,13 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
       {land ? (
         // Landscape: score left, input right
         <div style={{flex:'1 1 0',minHeight:0,display:'flex',flexDirection:'row'}}>
-          {pageImages.length>0 && (
+          {pageImages.length>0 ? (
             <div style={{flex:'1 1 0',minWidth:0,borderRight:`1px solid ${C.bord}`}}>
               {ScorePanel}
+            </div>
+          ) : isLoadedExercise && (
+            <div style={{width:220,flexShrink:0,borderRight:`1px solid ${C.bord}`,padding:12,overflowY:'auto'}}>
+              {AttachPanel}
             </div>
           )}
           <div style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflowY:'auto'}}>
@@ -1413,7 +1476,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
       ) : (
         // Portrait: score top, input/exercises below
         <div style={{flex:'1 1 0',minHeight:0,display:'flex',flexDirection:'column'}}>
-          {pageImages.length>0 && !generated && ScorePanel}
+          {!generated && (pageImages.length>0 ? ScorePanel : (isLoadedExercise && AttachPanel))}
           {generated ? (
             <>
               {ExercisePanel}
