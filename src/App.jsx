@@ -1634,9 +1634,9 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
     ctx.beginPath();ctx.moveTo(px-w,py-h-2);ctx.lineTo(px+w,py-h-2);ctx.lineTo(px,py-2);ctx.closePath();ctx.fill();
   };
 
-  const drawPage = (canvas,el,pageIdx) => {
-    if(!canvas||!el) return;
-    const w=el.clientWidth,h=el.clientHeight;
+  const drawPage = (canvas,img,pageIdx) => {
+    if(!canvas||!img) return;
+    const w=img.clientWidth,h=img.clientHeight;
     if(!w||!h) return;
     canvas.width=w;canvas.height=h;canvas.style.width=w+'px';canvas.style.height=h+'px';
     const ctx=canvas.getContext('2d');ctx.clearRect(0,0,w,h);
@@ -1648,8 +1648,7 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
     if(rightPage!==null) drawPage(canvasRef2.current,imgRef2.current,rightPage);
   },[markers,currentPage,rightPage]);
 
-  // Background-image divs don't have onLoad — trigger draw when page changes
-  useEffect(()=>{ const t=setTimeout(()=>draw(),80); return ()=>clearTimeout(t); },[draw,currentPage]);
+  useEffect(()=>{draw();},[draw]);
   useEffect(()=>{setLoaded(false);setLoaded2(false);},[currentPage]);
   useEffect(()=>{
     const ro=new ResizeObserver(()=>draw());
@@ -1658,55 +1657,30 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
   },[loaded,draw]);
   useEffect(()=>{draw();},[land,draw]);
 
-  const makeTouchHandlers = (pageIdx, getImg) => {
-    let pressTimer=null, pressX=0, pressY=0, didLong=false;
-    const placeOrRemove = (cx, cy) => {
-      const imgEl = typeof getImg==='function'?getImg():getImg;
-      if(!imgEl) return;
-      const rect=imgEl.getBoundingClientRect();
-      const x=(cx-rect.left)/rect.width, y=(cy-rect.top)/rect.height;
-      const hitX=44/imgEl.clientWidth, hitY=44/imgEl.clientHeight;
-      const near=markers.findIndex(m=>m.page===pageIdx&&Math.abs(m.x-x)<hitX&&Math.abs(m.y-y)<hitY);
-      if(near>=0) setMarkers(prev=>prev.filter((_,i)=>i!==near));
-      else setMarkers(prev=>[...prev,{page:pageIdx,x,y}]);
-      if(navigator.vibrate) navigator.vibrate(30);
-    };
-    return {
-      onTouchStart: e=>{
-        didLong=false;
-        const t=e.touches[0]; pressX=t.clientX; pressY=t.clientY;
-        pressTimer=setTimeout(()=>{ didLong=true; placeOrRemove(pressX,pressY); },500);
-      },
-      onTouchMove: e=>{
-        const t=e.touches[0];
-        if(Math.abs(t.clientX-pressX)>10||Math.abs(t.clientY-pressY)>10){
-          clearTimeout(pressTimer); pressTimer=null;
-        }
-      },
-      onTouchEnd: e=>{
-        clearTimeout(pressTimer); pressTimer=null;
-        if(!didLong && totalPages>1){
-          const imgEl=typeof getImg==='function'?getImg():getImg;
-          if(!imgEl) return;
-          const rect=imgEl.getBoundingClientRect();
-          const x=(pressX-rect.left)/rect.width;
-          if(x<0.2&&currentPage>0) setCurrentPage(p=>p-1);
-          else if(x>0.8&&currentPage<totalPages-1) setCurrentPage(p=>p+1);
-        }
-      },
-    };
+  const handleTap = e => {
+    const img=imgRef.current; if(!img) return;
+    const rect=img.getBoundingClientRect();
+    const x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
+    const hitX=44/img.clientWidth, hitY=44/img.clientHeight;
+    const near=markers.findIndex(m=>m.page===currentPage&&Math.abs(m.x-x)<hitX&&Math.abs(m.y-y)<hitY);
+    if(near>=0) setMarkers(prev=>prev.filter((_,i)=>i!==near));
+    else setMarkers(prev=>[...prev,{page:currentPage,x,y}]);
+  };
+
+  const handleTap2 = e => {
+    if(rightPage===null) return;
+    const img=imgRef2.current; if(!img) return;
+    const rect=img.getBoundingClientRect();
+    const x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
+    const hitX=44/img.clientWidth, hitY=44/img.clientHeight;
+    const near=markers.findIndex(m=>m.page===rightPage&&Math.abs(m.x-x)<hitX&&Math.abs(m.y-y)<hitY);
+    if(near>=0) setMarkers(prev=>prev.filter((_,i)=>i!==near));
+    else setMarkers(prev=>[...prev,{page:rightPage,x,y}]);
   };
 
   const totalMarkers=markers.length;
   const pageMarkers=markers.filter(m=>m.page===currentPage).length;
 
-  const pageNav = totalPages>1 && (
-    <div style={{display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
-      <Btn onClick={()=>setCurrentPage(p=>Math.max(0,p-1))} disabled={currentPage===0} style={{padding:'6px 14px'}}>←</Btn>
-      <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.cream,minWidth:60,textAlign:'center'}}>p.{currentPage+1}/{totalPages}</span>
-      <Btn onClick={()=>setCurrentPage(p=>Math.min(totalPages-1,p+1))} disabled={currentPage===totalPages-1} style={{padding:'6px 14px'}}>→</Btn>
-    </div>
-  );
 
   return (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
@@ -1714,11 +1688,19 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
         left={<BackBtn onClick={onBack} />}
         center={piece?.title||'MARK UNITS'}
         right={
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
             <Btn onClick={()=>setMarkers([])} disabled={totalMarkers===0}
               style={{fontSize:'0.75rem',padding:'5px 10px',color:totalMarkers>0?'#e05555':C.dim,borderColor:totalMarkers>0?'#e05555':C.bord}}>
               CLEAR
             </Btn>
+            {!showTwoPages && totalPages>1 && (
+              <>
+                <Btn onClick={()=>setCurrentPage(p=>Math.max(0,p-1))} disabled={currentPage===0}
+                  style={{padding:'5px 10px',fontSize:'0.75rem'}}>← PG</Btn>
+                <Btn onClick={()=>setCurrentPage(p=>Math.min(totalPages-1,p+1))} disabled={currentPage===totalPages-1}
+                  style={{padding:'5px 10px',fontSize:'0.75rem'}}>PG →</Btn>
+              </>
+            )}
             <Btn onClick={onNext} disabled={totalMarkers<2}>SESSION SETUP →</Btn>
           </div>
         }
@@ -1733,38 +1715,30 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:'0.08em',color:C.accent}}>
             {totalMarkers} marker{totalMarkers!==1?'s':''}{pageMarkers>0&&totalPages>1?` (${pageMarkers} this page)`:''}
           </div>
-          {pageNav}
         </div>
       </div>
 
       <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',flexDirection:'row'}}>
-        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}
-          ref={imgRef}
-          {...makeTouchHandlers(currentPage,()=>imgRef.current)}
-          onLoad={()=>{setLoaded(true);requestAnimationFrame(()=>draw());}}
-          style={{
-            backgroundImage:`url(${pageImages[currentPage]})`,
-            backgroundSize:'contain',backgroundRepeat:'no-repeat',
-            backgroundPosition:'center',
-            cursor:'crosshair',userSelect:'none',WebkitUserSelect:'none',
-            WebkitTouchCallout:'none', height:'100%',
-          }}>
+        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
+          <img ref={imgRef} src={pageImages[currentPage]}
+            onLoad={()=>{setLoaded(true);requestAnimationFrame(()=>draw());}}
+            onClick={handleTap}
+            style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
+              userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}
+            onContextMenu={e=>e.preventDefault()}
+            draggable={false} />
           <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none'}} />
         </div>
         {showTwoPages&&rightPage!==null&&(
-          <div style={{position:'relative',flex:1,minWidth:0,borderLeft:`1px solid ${C.bord}`,overflow:'hidden',height:'100%'}}>
-            <div ref={imgRef2}
-              {...makeTouchHandlers(rightPage,()=>imgRef2.current)}
-              style={{
-                width:'100%',height:'100%',
-                backgroundImage:`url(${pageImages[rightPage]})`,
-                backgroundSize:'contain',backgroundRepeat:'no-repeat',
-                backgroundPosition:'center',
-                cursor:'crosshair',userSelect:'none',WebkitUserSelect:'none',
-                WebkitTouchCallout:'none',
-              }}>
-              <canvas ref={canvasRef2} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none'}} />
-            </div>
+          <div style={{position:'relative',flex:1,minWidth:0,borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
+            <img ref={imgRef2} src={pageImages[rightPage]}
+              onLoad={()=>{setLoaded2(true);requestAnimationFrame(()=>draw());}}
+              onClick={handleTap2}
+              style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
+                userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}
+              onContextMenu={e=>e.preventDefault()}
+              draggable={false} />
+            <canvas ref={canvasRef2} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none'}} />
           </div>
         )}
       </div>
