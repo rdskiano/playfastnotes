@@ -689,7 +689,8 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
   // Redraw on orientation change
   useEffect(() => { draw(); }, [land, draw]);
 
-  const makeTapHandler = (pageIdx, imgEl) => e => {
+  const makeTapHandler = (pageIdx, getImg) => e => {
+    const imgEl = typeof getImg === 'function' ? getImg() : getImg;
     if (!imgEl) return;
     const rect = imgEl.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
@@ -763,7 +764,7 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
         <div style={{ position: 'relative', flex: 1, minWidth: 0, overflowY: 'auto' }}>
           <img ref={imgRef} src={pageImages[currentPage]}
             onLoad={() => { setLoaded(true); requestAnimationFrame(() => draw()); }}
-            onClick={makeTapHandler(currentPage, imgRef.current)}
+            onClick={makeTapHandler(currentPage, () => imgRef.current)}
             style={{ width: '100%', display: 'block', cursor: 'crosshair', userSelect: 'none' }}
             draggable={false} />
           <canvas ref={canvasRef}
@@ -776,7 +777,7 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
             borderLeft: `1px solid ${C.bord}`, overflowY: 'auto' }}>
             <img ref={imgRef2} src={pageImages[rightPage]}
               onLoad={() => { setLoaded2(true); requestAnimationFrame(() => draw()); }}
-              onClick={makeTapHandler(rightPage, imgRef2.current)}
+              onClick={makeTapHandler(rightPage, () => imgRef2.current)}
               style={{ width: '100%', display: 'block', cursor: 'crosshair', userSelect: 'none' }}
               draggable={false} />
             <canvas ref={canvasRef2}
