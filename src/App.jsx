@@ -328,9 +328,6 @@ export default function ICUApp() {
           increment={increment}   setIncrement={setIncrement}
           onBack={() => setScreen('mark')}
           onStart={() => setScreen('session')}
-          profile={profile}
-          piece={piece}
-          markers={markers}
         />
       )}
       {screen === 'session' && (
@@ -660,7 +657,14 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
       .forEach(m => drawArrow(ctx, m.x * w, m.y * h, C.accent));
   }, [markers, currentPage]);
 
-  useEffect(() => { if (loaded) draw(); }, [loaded, draw]);
+  useEffect(() => {
+    if (loaded) {
+      draw();
+      // Re-draw after layout settles (fixes first-page blank canvas)
+      const t = setTimeout(() => draw(), 80);
+      return () => clearTimeout(t);
+    }
+  }, [loaded, draw]);
   useEffect(() => { setLoaded(false); }, [currentPage]);
   useEffect(() => {
     const ro = new ResizeObserver(() => { if (loaded) draw(); });
@@ -743,28 +747,10 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
    PARAMS SCREEN
 ════════════════════════════════════════════════════════════════════════ */
 function ParamsScreen({ N, startTempo, setStartTempo, goalTempo, setGoalTempo,
-  increment, setIncrement, onBack, onStart, profile, piece, markers }) {
+  increment, setIncrement, onBack, onStart }) {
 
   const valid = goalTempo > startTempo && increment > 0 && increment <= goalTempo - startTempo;
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
-  const [sessionTitle, setSessionTitle] = useState('');
 
-  const saveSession = async () => {
-    if (!valid) return;
-    setSaving(true); setSaveMsg('Saving...');
-    try {
-      await sbPost('/rest/v1/icu_sessions', {
-        piece_id: piece?.id, user_email: profile.email,
-        title: sessionTitle.trim() || null,
-        markers: JSON.stringify(markers),
-        start_tempo: startTempo, goal_tempo: goalTempo, increment,
-      });
-      setSaveMsg('Session saved!');
-      setTimeout(() => setSaveMsg(''), 1500);
-    } catch { setSaveMsg('Save failed.'); }
-    setSaving(false);
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
@@ -777,9 +763,9 @@ function ParamsScreen({ N, startTempo, setStartTempo, goalTempo, setGoalTempo,
       <div style={{ flex: '1 1 0', overflowY: 'auto', padding: '24px 20px',
         display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 480, margin: '0 auto', width: '100%' }}>
 
-        <div style={{ fontFamily: "'Inconsolata', monospace", fontSize: '0.75rem',
-          color: C.muted, letterSpacing: '0.08em' }}>
-          {N} UNIT{N !== 1 ? 'S' : ''} &nbsp;&middot;&nbsp; {piece?.title || 'Untitled'}
+        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: '1.1rem',
+          color: C.cream, letterSpacing: '0.1em' }}>
+          {N} UNIT{N !== 1 ? 'S' : ''}
         </div>
 
         <Spinner label="START TEMPO" value={startTempo} set={setStartTempo} min={20} max={goalTempo - 1} />
@@ -789,28 +775,12 @@ function ParamsScreen({ N, startTempo, setStartTempo, goalTempo, setGoalTempo,
         {valid && (
           <div style={{ padding: '12px 14px', background: C.panel,
             border: `1px solid ${C.bord2}`, fontFamily: "'Inconsolata', monospace",
-            fontSize: '0.75rem', color: C.cream, lineHeight: 1.8 }}>
+            fontSize: '1rem', color: C.cream, lineHeight: 1.8 }}>
             {Math.floor((goalTempo - startTempo) / increment) + 1} steps per phase &nbsp;&middot;&nbsp; {N} phases
           </div>
         )}
 
-        <div style={{ borderTop: `1px solid ${C.bord}`, paddingTop: 20,
-          display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <Field label="Session title (optional — save to library)">
-            <input type="text" value={sessionTitle}
-              onChange={e => setSessionTitle(e.target.value)}
-              placeholder="e.g. Passage A, mm 45-52" />
-          </Field>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Btn onClick={saveSession} disabled={!valid || saving}
-              style={{ flex: 1, fontSize: '0.75rem', padding: '7px 10px',
-                borderColor: C.bord2, color: C.cream, background: 'transparent' }}>
-              {saving ? 'SAVING...' : '↑ SAVE TO LIBRARY'}
-            </Btn>
-            {saveMsg && <span style={{ fontFamily: "'Inconsolata', monospace",
-              fontSize: '0.75rem', color: C.gold }}>{saveMsg}</span>}
-          </div>
-        </div>
+
       </div>
 
       <div style={{ padding: '12px 20px', borderTop: `1px solid ${C.bord}`, flexShrink: 0 }}>
@@ -831,7 +801,7 @@ function Spinner({ label, value, set, min, max }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.1em',
-        fontSize: '1rem', color: C.cream }}>{label}</div>
+        fontSize: '1.2rem', color: C.cream }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <button style={S} onClick={() => set(v => Math.max(min, v - 1))}>-</button>
         <input type="number" value={value}
@@ -925,7 +895,13 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
       });
   }, [step.units, markers, currentPage]);
 
-  useEffect(() => { if (imgLoaded) drawOverlay(); }, [imgLoaded, drawOverlay]);
+  useEffect(() => {
+    if (imgLoaded) {
+      drawOverlay();
+      const t = setTimeout(() => drawOverlay(), 80);
+      return () => clearTimeout(t);
+    }
+  }, [imgLoaded, drawOverlay]);
   useEffect(() => {
     const ro = new ResizeObserver(() => { if (imgLoaded) drawOverlay(); });
     if (imgRef.current) ro.observe(imgRef.current);
