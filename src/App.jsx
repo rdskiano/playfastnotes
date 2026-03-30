@@ -23,9 +23,10 @@ const C = {
 const FONTS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Bebas+Neue&family=Inconsolata:wght@400;600&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}
-  html,body,#root{height:100%;}
-  body{font-family:'Cormorant Garamond',Georgia,serif;background:${C.ink};
-    padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);overflow:hidden;}
+  html{height:-webkit-fill-available;}
+  body{height:-webkit-fill-available;font-family:'Cormorant Garamond',Georgia,serif;background:${C.ink};
+    padding-top:env(safe-area-inset-top);overflow:hidden;}
+  #root{height:100%;}
   input[type=number],input[type=text],input[type=email]{
     background:${C.panel};color:${C.cream};border:1px solid ${C.bord};
     padding:9px 12px;font-family:'Inconsolata',monospace;font-size:1rem;width:100%;}
@@ -77,7 +78,7 @@ const Field = ({ label, children }) => (
 const TopBar = ({ left, center, right }) => (
   <div style={{
     display:'flex',alignItems:'center',justifyContent:'space-between',
-    padding:'0 16px',height:52,flexShrink:0,
+    padding:'0 14px',height:46,flexShrink:0,
     borderBottom:`2px solid ${C.accent}`,background:C.ink,
   }}>
     <div style={{ minWidth:80 }}>{left}</div>
@@ -94,6 +95,17 @@ const range = (a,b) => Array.from({length:b-a},(_,i)=>a+i);
 
 function getProfile() { try { return JSON.parse(localStorage.getItem('murProfile')||'{}'); } catch { return {}; } }
 function setProfile(p) { localStorage.setItem('murProfile', JSON.stringify(p)); }
+
+function useWindowHeight() {
+  const [h,setH] = useState(()=>window.innerHeight);
+  useEffect(()=>{
+    const u = ()=>setH(window.innerHeight);
+    window.addEventListener('resize',u);
+    window.addEventListener('orientationchange',()=>setTimeout(u,150));
+    return ()=>window.removeEventListener('resize',u);
+  },[]);
+  return h;
+}
 
 function useOrientation() {
   const [land,setLand] = useState(()=>window.innerWidth>window.innerHeight);
@@ -487,6 +499,16 @@ function g2s(n){return{3:"Three-Note Rhythm Patterns",4:"Four-Note Rhythm Patter
 /* ═══════════════════════════════════════════════════════════════════════
    ROOT APP
 ═══════════════════════════════════════════════════════════════════════ */
+function RootContainer({children}) {
+  const h = useWindowHeight();
+  return (
+    <div style={{height:h,background:C.ink,color:C.cream,
+      display:'flex',flexDirection:'column',overflow:'hidden'}}>
+      {children}
+    </div>
+  );
+}
+
 export default function App() {
   const [screen,setScreen]         = useState('signin');
   const [profile,setProfileState]  = useState(getProfile);
@@ -505,7 +527,7 @@ export default function App() {
   useEffect(()=>{ if(getProfile()?.email) setScreen('library'); },[]);
 
   return (
-    <div style={{height:'100dvh',background:C.ink,color:C.cream,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+    <RootContainer>
       <style>{FONTS}</style>
       {screen==='signin'   && <SignInScreen onSignIn={p=>{saveProf(p);setScreen('library');}} />}
       {screen==='library'  && (
@@ -555,7 +577,7 @@ export default function App() {
           onBack={()=>setScreen(piece?'strategy':'library')}
         />
       )}
-    </div>
+    </RootContainer>
   );
 }
 
@@ -1707,8 +1729,8 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
       />
 
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        padding:'8px 16px',flexShrink:0,borderBottom:`1px solid ${C.bord}`,gap:12}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:C.cream,flex:1}}>
+        padding:'6px 14px',flexShrink:0,borderBottom:`1px solid ${C.bord}`,gap:12}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:C.cream,flex:1}}>
           Tap above the first note of each unit to place a marker
         </div>
         <div style={{display:'flex',gap:10,alignItems:'center',flexShrink:0}}>
@@ -1768,7 +1790,7 @@ function ParamsScreen({ N, startTempo, setStartTempo, goalTempo, setGoalTempo, i
   return (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <TopBar left={<BackBtn onClick={onBack} />} center="SESSION SETUP" right={null} />
-      <div style={{flex:'1 1 0',overflowY:'auto',padding:'16px 20px',display:'flex',flexDirection:'column',gap:16,maxWidth:540,margin:'0 auto',width:'100%'}}>
+      <div style={{flex:'1 1 0',overflowY:'auto',padding:'12px 20px',display:'flex',flexDirection:'column',gap:14,maxWidth:540,margin:'0 auto',width:'100%'}}>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',color:C.cream,letterSpacing:'0.1em'}}>
           {N} UNIT{N!==1?'S':''}
         </div>
@@ -1927,7 +1949,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
 
   const topBarContent = (compact) => (
     <div style={{flexShrink:0,borderBottom:`2px solid ${C.accent}`,background:C.ink}}>
-      <div style={{display:'flex',alignItems:'center',gap:10,padding:compact?'4px 12px':'6px 12px'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,padding:compact?'3px 12px':'5px 12px'}}>
         <button onClick={onBack} style={{background:'none',border:`1px solid ${C.bord2}`,color:C.cream,padding:'6px 14px',cursor:'pointer',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',letterSpacing:'0.1em',flexShrink:0}}>← EXIT</button>
         <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:compact?'clamp(1.4rem,4vw,2rem)':'clamp(1.8rem,7vw,2.6rem)',color:atGoal?C.accent:C.cream,lineHeight:1}}>
@@ -1940,7 +1962,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
         </div>
         <div style={{minWidth:52}} />
       </div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:compact?'2px 12px 3px':'4px 12px 6px',fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:compact?12:15,color:C.cream}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:compact?'2px 12px 2px':'3px 12px 4px',fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:compact?12:15,color:C.cream}}>
         <span>Play from</span>
         <span style={{display:'inline-block',width:0,height:0,borderLeft:`${compact?5:6}px solid transparent`,borderRight:`${compact?5:6}px solid transparent`,borderBottom:`${compact?7:8}px solid #3db06a`,transform:'rotate(180deg)',marginTop:1}} />
         <span style={{color:C.muted}}>to</span>
@@ -1953,18 +1975,18 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   const bottomBar = (
     <div style={{display:'grid',gridTemplateColumns:'1fr 2fr',gap:0,flexShrink:0,borderTop:`2px solid ${C.bord}`}}>
       <Btn onClick={()=>setIdx(nextPhaseIdx)} disabled={!hasNextPhase} full
-        style={{padding:'14px 8px',fontSize:'1rem',borderRadius:0,border:'none',borderRight:`1px solid ${C.bord}`,background:hasNextPhase?C.panel:'transparent',color:hasNextPhase?C.cream:C.dim}}>
+        style={{padding:'12px 8px',fontSize:'1rem',borderRadius:0,border:'none',borderRight:`1px solid ${C.bord}`,background:hasNextPhase?C.panel:'transparent',color:hasNextPhase?C.cream:C.dim}}>
         NEXT PHASE »
       </Btn>
       <Btn onClick={()=>setIdx(i=>Math.min(steps.length-1,i+1))} disabled={idx>=steps.length-1} full
-        style={{padding:'14px 8px',fontSize:'1.1rem',borderRadius:0,border:'none',background:idx>=steps.length-1?'transparent':C.accent,color:'white'}}>
+        style={{padding:'12px 8px',fontSize:'1.1rem',borderRadius:0,border:'none',background:idx>=steps.length-1?'transparent':C.accent,color:'white'}}>
         NEXT STEP →
       </Btn>
     </div>
   );
 
   return (
-    <div style={{display:'flex',flexDirection:'column',height:'100dvh',background:C.ink}}>
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,background:C.ink}}>
       {topBarContent(land)}
       {progressBar}
       {photoBlock}
