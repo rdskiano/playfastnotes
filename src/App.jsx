@@ -637,15 +637,12 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
 
   const drawArrow = (ctx, px, py, color) => {
     const w = 10, h = 13;
-    // Solid downward-pointing triangle, tip just above the note
     ctx.fillStyle = color;
-    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4;
     ctx.beginPath();
     ctx.moveTo(px - w, py - h - 2);
     ctx.lineTo(px + w, py - h - 2);
     ctx.lineTo(px, py - 2);
     ctx.closePath(); ctx.fill();
-    ctx.shadowBlur = 0;
   };
 
   const drawPage = (canvas, img, pageIdx) => {
@@ -899,16 +896,14 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   useEffect(() => { metro.current.setBpm(step.tempo); }, [step.tempo]);
   useEffect(() => () => metro.current.stop(), []);
 
-  const drawArrow = (ctx, px, py, color, big) => {
-    const w = big ? 11 : 7, h = big ? 14 : 9;
+  const drawArrow = (ctx, px, py, color) => {
+    const w = 10, h = 13;
     ctx.fillStyle = color;
-    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = big ? 6 : 3;
     ctx.beginPath();
     ctx.moveTo(px - w, py - h - 2);
     ctx.lineTo(px + w, py - h - 2);
     ctx.lineTo(px, py - 2);
     ctx.closePath(); ctx.fill();
-    ctx.shadowBlur = 0;
   };
 
   const drawOverlay = useCallback(() => {
@@ -924,18 +919,18 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
     const activeStart = step.units[0];
     const activeEnd   = Math.min(step.units[step.units.length - 1] + 1, markers.length - 1);
     const GREEN = '#3db06a';
+    const RED   = '#e05555';
 
     markers
       .filter(m => m.page === currentPage)
-      .forEach((m, localIdx) => {
+      .forEach(m => {
         const globalIdx = markers.findIndex(gm => gm === m);
-        const isStart = globalIdx === activeStart;
-        const isEnd   = globalIdx === activeEnd;
+        const isStart  = globalIdx === activeStart;
+        const isEnd    = globalIdx === activeEnd;
         const isActive = globalIdx >= activeStart && globalIdx <= activeEnd;
-        const color = (isStart || isEnd) ? GREEN : '#888';
-        const big   = isStart || isEnd;
+        const color = isStart ? GREEN : isEnd ? RED : '#888';
         ctx.globalAlpha = isActive ? 1 : 0.35;
-        drawArrow(ctx, m.x * w, m.y * h, color, big);
+        drawArrow(ctx, m.x * w, m.y * h, color);
         ctx.globalAlpha = 1;
       });
   }, [step.units, markers, currentPage]);
@@ -977,7 +972,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
       const isActive = globalIdx >= activeStart && globalIdx <= activeEnd;
       const color = isStart ? GREEN : isEnd ? RED : '#888';
       ctx.globalAlpha = isActive ? 1 : 0.35;
-      drawArrow(ctx, m.x * w, m.y * h, color, isStart || isEnd);
+      drawArrow(ctx, m.x * w, m.y * h, color);
       ctx.globalAlpha = 1;
     });
   }, [step.units, markers, rightPageS]);
