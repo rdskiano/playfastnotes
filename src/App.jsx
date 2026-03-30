@@ -1688,33 +1688,47 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
         left={<BackBtn onClick={onBack} />}
         center={piece?.title||'MARK UNITS'}
         right={
-          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
             <Btn onClick={()=>setMarkers([])} disabled={totalMarkers===0}
-              style={{fontSize:'0.75rem',padding:'5px 10px',color:totalMarkers>0?'#e05555':C.dim,borderColor:totalMarkers>0?'#e05555':C.bord}}>
+              style={{fontSize:'0.85rem',padding:'7px 14px',
+                color:totalMarkers>0?'#e05555':C.dim,
+                borderColor:totalMarkers>0?'#e05555':C.bord}}>
               CLEAR
             </Btn>
-            {!showTwoPages && totalPages>1 && (
-              <>
-                <Btn onClick={()=>setCurrentPage(p=>Math.max(0,p-1))} disabled={currentPage===0}
-                  style={{padding:'5px 10px',fontSize:'0.75rem'}}>← PG</Btn>
-                <Btn onClick={()=>setCurrentPage(p=>Math.min(totalPages-1,p+1))} disabled={currentPage===totalPages-1}
-                  style={{padding:'5px 10px',fontSize:'0.75rem'}}>PG →</Btn>
-              </>
-            )}
-            <Btn onClick={onNext} disabled={totalMarkers<2}>SESSION SETUP →</Btn>
+            <Btn onClick={onNext} disabled={totalMarkers<2}
+              style={{fontSize:'0.85rem',padding:'7px 14px',
+                background:totalMarkers>=2?C.accent:'transparent',
+                color:totalMarkers>=2?'white':C.dim,
+                borderColor:totalMarkers>=2?C.accent:C.bord}}>
+              SESSION SETUP →
+            </Btn>
           </div>
         }
       />
 
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        padding:'8px 16px',flexShrink:0,borderBottom:`1px solid ${C.bord}`,gap:12,flexWrap:'wrap'}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:C.cream}}>
-          Hold above the first note of each unit to place a marker
+        padding:'8px 16px',flexShrink:0,borderBottom:`1px solid ${C.bord}`,gap:12}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:C.cream,flex:1}}>
+          Tap above the first note of each unit to place a marker
         </div>
-        <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:'0.08em',color:C.accent}}>
-            {totalMarkers} marker{totalMarkers!==1?'s':''}{pageMarkers>0&&totalPages>1?` (${pageMarkers} this page)`:''}
+        <div style={{display:'flex',gap:10,alignItems:'center',flexShrink:0}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:'0.08em',color:C.accent}}>
+            {totalMarkers} marker{totalMarkers!==1?'s':''}
+            {pageMarkers>0&&totalPages>1?` (${pageMarkers} this page)`:''}
           </div>
+          {!showTwoPages && totalPages>1 && (
+            <div style={{display:'flex',gap:6,alignItems:'center'}}>
+              <Btn onClick={()=>setCurrentPage(p=>Math.max(0,p-1))}
+                disabled={currentPage===0}
+                style={{padding:'5px 12px',fontSize:'0.85rem'}}>← PAGE</Btn>
+              <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.cream}}>
+                {currentPage+1}/{totalPages}
+              </span>
+              <Btn onClick={()=>setCurrentPage(p=>Math.min(totalPages-1,p+1))}
+                disabled={currentPage===totalPages-1}
+                style={{padding:'5px 12px',fontSize:'0.85rem'}}>PAGE →</Btn>
+            </div>
+          )}
         </div>
       </div>
 
