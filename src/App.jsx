@@ -1155,7 +1155,8 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
 
   // ── Refs ───────────────────────────────────────────────────────────
   const acRef      = useRef(null);
-  const pianoRef   = useRef(null);
+  const pianoRef       = useRef(null);
+  const [pianoMounted,setPianoMounted] = useState(false);
   const exDivRef       = useRef(null);
   const liveStaffRef   = useRef(null);
   const micRef     = useRef({active:false,stream:null,ctx:null,analyser:null,timer:null});
@@ -1198,7 +1199,6 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
     const spelled = accMode==='flat'&&{'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'}[raw.slice(0,-1)]
       ? ({'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'}[raw.slice(0,-1)]+raw.slice(-1))
       : raw;
-    playNote(spelled);
     setSelNotes(prev=>{
       if(insertAt>=0){
         const next=[...prev];next.splice(insertAt,0,spelled);return next;
@@ -1206,7 +1206,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
       return [...prev,spelled];
     });
     if(insertAt>=0) setInsertAt(i=>i+1);
-  },[accMode,insertAt,instrTranspose]);
+  },[accMode,insertAt]);
 
   useEffect(()=>{
     const svg=pianoRef.current;
@@ -1246,6 +1246,8 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
       const raw=k.getAttribute('data-note');const isBlack=raw.indexOf('#')!==-1;
       k.setAttribute('fill','#c8601a');
       setTimeout(()=>k.setAttribute('fill',isBlack?'#1a1612':'#fdfaf5'),160);
+      // Always play sound, only add note if group is selected
+      playNote(raw);
       if(!activeGroup) return;
       addNote(raw);
     };
@@ -1255,7 +1257,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
     svg.addEventListener('touchstart',e=>{_tx=e.touches[0].clientX;_tswiped=false;_ttimer=setTimeout(()=>{if(!_tswiped)handlePress(e);_ttimer=null;},150);e.preventDefault();},{passive:false});
     svg.addEventListener('touchmove',e=>{if(Math.abs(e.touches[0].clientX-_tx)>8){_tswiped=true;if(_ttimer){clearTimeout(_ttimer);_ttimer=null;}}},{passive:true});
     svg.addEventListener('touchend',e=>{if(_ttimer){clearTimeout(_ttimer);_ttimer=null;if(!_tswiped)handlePress(e);}},{passive:true});
-  },[activeGroup,addNote]);
+  },[activeGroup,addNote,pianoMounted]);
 
   // ── Live staff preview — renders current notes as simple scale ─────
   useEffect(()=>{
@@ -1480,7 +1482,7 @@ K:${abcKey}${abcClef}
               if(stableCount>=2){
                 const written=accMode==='flat'&&({'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'}[note.slice(0,-1)])?({'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'}[note.slice(0,-1)]+note.slice(-1)):note;
                 addNote(written);setMicStatus(written);
-                lockout=now+300;noteActive=false;stableCount=0;lastFreq=0;
+                lockout=now+600;noteActive=false;stableCount=0;lastFreq=0;
               }
             } else {stableCount=1;lastFreq=freq;}
           }
@@ -1716,7 +1718,7 @@ K:${abcKey}${abcClef}
       {inputTab==='keys' && (
         <div style={{flexShrink:0}}>
           <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
-            <svg ref={pianoRef} viewBox="0 0 1008 130" preserveAspectRatio="none"
+            <svg ref={el=>{pianoRef.current=el;if(el&&!pianoMounted)setPianoMounted(true);}} viewBox="0 0 1008 130" preserveAspectRatio="none"
               style={{width:2000,height:160,display:'block',cursor:'pointer',touchAction:'none'}} />
           </div>
         </div>
@@ -1754,7 +1756,7 @@ K:${abcKey}${abcClef}
       {/* Chips */}
       <div style={{padding:'8px 14px',flexShrink:0}}>
         <div style={{display:'flex',flexWrap:'wrap',gap:4,minHeight:28,alignItems:'center'}}>
-          {selNotes.length===0 && <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',color:C.muted}}>No notes entered</span>}
+          {selNotes.length===0 && <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',color:C.muted}}>{activeGroup ? 'Play a key to enter notes' : 'Select a grouping above first'}</span>}
           {selNotes.map((n,i)=>(
             <React.Fragment key={i}>
               <button onClick={()=>setInsertAt(insertAt===i?-1:i)} style={{
