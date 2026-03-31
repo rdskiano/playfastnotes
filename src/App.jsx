@@ -93,8 +93,6 @@ const TopBar = ({ left, center, right }) => (
 ═══════════════════════════════════════════════════════════════════════ */
 const range = (a,b) => Array.from({length:b-a},(_,i)=>a+i);
 
-function dn(n){return n.replace('##','\uD834\uDD2A').replace('bb','\uD834\uDD2B').replace('#','\u266F').replace(/([A-G])b/g,'$1\u266D');}
-
 function getProfile() { try { return JSON.parse(localStorage.getItem('murProfile')||'{}'); } catch { return {}; } }
 function setProfile(p) { localStorage.setItem('murProfile', JSON.stringify(p)); }
 
@@ -1045,74 +1043,141 @@ function StrategyScreen({ piece, onICU, onMUR, onBack }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   CHIP POPUP — note respell / accidental / delete
+   RESPELL POPUP  (matching original MUR design)
 ═══════════════════════════════════════════════════════════════════════ */
-function ChipPopup({ note, anchorY, onClose, onDelete, onUpdate, onRespell }) {
+
+const ENARMAP = {
+  'C':['C','B#','Dbb'],'B#':['B#','C'],'Dbb':['Dbb','C'],
+  'C#':['C#','Db'],'Db':['Db','C#'],
+  'D':['D','C##','Ebb'],'C##':['C##','D'],'Ebb':['Ebb','D'],
+  'D#':['D#','Eb'],'Eb':['Eb','D#'],
+  'E':['E','Fb'],'Fb':['Fb','E'],'D##':['D##','E'],
+  'F':['F','E#'],'E#':['E#','F'],
+  'F#':['F#','Gb'],'Gb':['Gb','F#'],'E##':['E##','F#'],
+  'G':['G','F##','Abb'],'F##':['F##','G'],'Abb':['Abb','G'],
+  'G#':['G#','Ab'],'Ab':['Ab','G#'],
+  'A':['A','G##','Bbb'],'G##':['G##','A'],'Bbb':['Bbb','A'],
+  'A#':['A#','Bb'],'Bb':['Bb','A#'],
+  'B':['B','Cb','A##'],'Cb':['Cb','B'],'A##':['A##','B'],
+};
+
+function getEnharmonics(note) {
+  const m = note?.match(/^([A-G])(##|bb|#|b|n)?(\d)$/);
+  if (!m) return [note];
+  const letter=m[1], rawAcc=m[2]||'', oct=m[3];
+  const baseAcc = rawAcc==='n' ? '' : rawAcc;
+  const options = ENARMAP[letter+baseAcc] || [letter+baseAcc];
+  return options.map(s=>s+oct);
+}
+
+function RespellPopup({ note, anchorY, onClose, onDelete, onUpdate }) {
   const m = note?.match(/^([A-G])(##|bb|#|b|n)?(\d)$/);
   if (!m) return null;
-  const pc = m[1], curAcc = m[2]||'', oct = parseInt(m[3]);
+  const letter=m[1], rawAcc=m[2]||'', oct=m[3];
+  const baseAcc = rawAcc==='n' ? '' : rawAcc;
+  const enharmonics = getEnharmonics(note);
+  const [customVal, setCustomVal] = React.useState('');
 
-  const ACCS = [
-    { label:'\uD834\uDD2B', acc:'bb', title:'double flat'  },
-    { label:'\u266D',        acc:'b',  title:'flat'          },
-    { label:'\u266E',        acc:'n',  title:'forced natural' },
-    { label:pc,              acc:'',   title:'no accidental'  },
-    { label:'\u266F',        acc:'#',  title:'sharp'          },
-    { label:'\uD834\uDD2A', acc:'##', title:'double sharp'   },
+  const handleCustomOk = () => {
+    const v = customVal.trim().replace(/\s/g,'');
+    if (!v) return;
+    const m2 = v.match(/^([A-G])(##|bb|#|b|n)?(\d)$/i);
+    if (m2) { onUpdate(m2[1].toUpperCase()+(m2[2]||'')+m2[3]); setCustomVal(''); }
+  };
+
+  const FORCE_ACCS = [
+    {label:'○', acc:'',   title:'no accidental'},
+    {label:'♮', acc:'n',  title:'natural (courtesy)'},
+    {label:'♯', acc:'#',  title:'sharp'},
+    {label:'♭', acc:'b',  title:'flat'},
+    {label:'𝄪', acc:'##', title:'double sharp'},
+    {label:'𝄫', acc:'bb', title:'double flat'},
   ];
 
-  const popupH = 145;
+  const popupH = 260;
   const top = anchorY > popupH + 80 ? anchorY - popupH - 10 : anchorY + 34;
 
   return (
     <>
       <div onClick={e=>{e.stopPropagation();onClose();}}
-        style={{position:'fixed',inset:0,zIndex:199}} />
+        style={{position:'fixed',inset:0,zIndex:299}} />
       <div onClick={e=>e.stopPropagation()}
         style={{
           position:'fixed',left:'50%',top,transform:'translateX(-50%)',
-          zIndex:200,background:C.panel,border:`2px solid ${C.accent}`,
-          padding:'12px 14px',minWidth:238,maxWidth:320,
-          display:'flex',flexDirection:'column',gap:10,
-          boxShadow:'0 8px 32px rgba(0,0,0,0.75)',
+          zIndex:300,background:'#111009',border:`1px solid ${C.bord}`,
+          width:300,boxShadow:'0 8px 40px rgba(0,0,0,0.85)',
         }}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.9rem',
-          letterSpacing:'0.12em',color:C.cream,textAlign:'center',lineHeight:1}}>
-          {dn(note)}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+          padding:'8px 14px',borderBottom:`1px solid ${C.bord}`,background:'#0d0b09'}}>
+          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.8rem',
+            letterSpacing:'0.22em',color:C.rule}}>RESPELL</span>
+          <button onClick={onClose} style={{background:'none',border:'none',
+            color:C.muted,cursor:'pointer',fontSize:'1.1rem',lineHeight:1,padding:'0 2px'}}>×</button>
         </div>
-        <div>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.62rem',
-            letterSpacing:'0.18em',color:C.rule,marginBottom:5}}>FORCE ACCIDENTAL</div>
-          <div style={{display:'flex',gap:3}}>
-            {ACCS.map(opt=>(
-              <button key={opt.acc} onClick={()=>onUpdate(pc+opt.acc+oct)} title={opt.title}
-                style={{
-                  flex:1,padding:'7px 2px',
-                  background:curAcc===opt.acc?C.accent:'#2a231d',
-                  border:`1px solid ${curAcc===opt.acc?C.accent:C.bord}`,
-                  color:curAcc===opt.acc?'white':C.cream,
-                  fontFamily:"'Cormorant Garamond',serif",fontSize:'1.05rem',
-                  cursor:'pointer',transition:'background 0.1s',
-                }}>
-                {opt.label}
-              </button>
-            ))}
+        <div style={{padding:'12px 14px',borderBottom:`1px solid ${C.bord}`}}>
+          <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+            {enharmonics.map(opt=>{
+              const isCur = opt === letter+baseAcc+oct;
+              return (
+                <button key={opt} onClick={()=>onUpdate(opt)} style={{
+                  padding:'7px 14px',
+                  background:isCur?C.accent:'#2a231d',
+                  border:`1px solid ${isCur?C.accent:C.bord}`,
+                  color:isCur?'white':C.cream,
+                  fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
+                  letterSpacing:'0.06em',cursor:'pointer',
+                  WebkitTapHighlightColor:'transparent',
+                }}>{dn(opt)}</button>
+              );
+            })}
           </div>
         </div>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={onRespell}
-            style={{flex:1,padding:'8px',background:'#2a231d',
-              border:`1px solid ${C.bord2}`,color:C.cream,
-              fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.78rem',
-              letterSpacing:'0.1em',cursor:'pointer'}}>
-            &#8644; RESPELL
-          </button>
-          <button onClick={onDelete}
-            style={{flex:1,padding:'8px',background:'none',
-              border:'1px solid #cc4444',color:'#e57373',
-              fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.78rem',
-              letterSpacing:'0.1em',cursor:'pointer'}}>
-            &#215; DELETE
+        <div style={{padding:'10px 14px',borderBottom:`1px solid ${C.bord}`}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.58rem',
+            letterSpacing:'0.2em',color:C.rule,marginBottom:5}}>TYPE ANY SPELLING</div>
+          <div style={{display:'flex',gap:6}}>
+            <input type="text" value={customVal}
+              onChange={e=>setCustomVal(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&handleCustomOk()}
+              placeholder="e.g. B#4, Fb3, Dbb4"
+              style={{flex:1,background:'#0d0b09',border:`1px solid ${C.bord}`,
+                color:C.cream,padding:'6px 8px',fontFamily:"'Inconsolata',monospace",
+                fontSize:'0.78rem',outline:'none'}} />
+            <button onClick={handleCustomOk} style={{
+              background:C.accent,border:'none',color:'white',
+              padding:'6px 14px',fontFamily:"'Bebas Neue',sans-serif",
+              fontSize:'0.8rem',letterSpacing:'0.1em',cursor:'pointer',
+              WebkitTapHighlightColor:'transparent'}}>OK</button>
+          </div>
+        </div>
+        <div style={{padding:'10px 14px',borderBottom:`1px solid ${C.bord}`}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.58rem',
+            letterSpacing:'0.2em',color:C.rule,marginBottom:5}}>FORCE ACCIDENTAL</div>
+          <div style={{display:'flex',gap:4}}>
+            {FORCE_ACCS.map(opt=>{
+              const active = rawAcc===opt.acc;
+              return (
+                <button key={opt.acc} onClick={()=>onUpdate(letter+opt.acc+oct)} title={opt.title}
+                  style={{
+                    flex:1,padding:'7px 4px',
+                    background:active?C.accent:'#2a231d',
+                    border:`1px solid ${active?C.accent:C.bord}`,
+                    color:active?'white':C.cream,
+                    fontFamily:"'Cormorant Garamond',serif",fontSize:'1rem',
+                    cursor:'pointer',WebkitTapHighlightColor:'transparent',
+                  }}>{opt.label}</button>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{padding:'10px 14px'}}>
+          <button onClick={onDelete} style={{
+            width:'100%',padding:'8px',background:'none',
+            border:`1px solid #444`,color:'#e57373',
+            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.78rem',
+            letterSpacing:'0.12em',cursor:'pointer',
+            WebkitTapHighlightColor:'transparent'}}>
+            DELETE THIS NOTE
           </button>
         </div>
       </div>
@@ -1124,125 +1189,63 @@ function ChipPopup({ note, anchorY, onClose, onDelete, onUpdate, onRespell }) {
    MUR SCREEN
 ═══════════════════════════════════════════════════════════════════════ */
 /* ═══════════════════════════════════════════════════════════════════════
-   SCROLLABLE SCORE PANEL — auto-scrolls to tap Y position on arrival
+   MUR SCREEN  — Rhythmic Variation (wizard-style, matching original)
 ═══════════════════════════════════════════════════════════════════════ */
-function ZoomableScore({ src, tapPos, currentPage, totalPages, onPageChange, flex }) {
-  const containerRef = useRef();
-  const imgRef       = useRef();
-
-  const scrollToTap = () => {
-    const img = imgRef.current;
-    const container = containerRef.current;
-    if(!img || !container || !tapPos || tapPos.page !== currentPage) return;
-    const imgH = img.offsetHeight;
-    if(!imgH) return;
-    const targetY = tapPos.y * imgH;
-    container.scrollTop = Math.max(0, targetY - container.clientHeight * 0.3);
-  };
-
-  // Reset scroll when page changes
-  useEffect(() => {
-    if(containerRef.current) containerRef.current.scrollTop = 0;
-  }, [currentPage]);
-
-  return (
-    <div ref={containerRef}
-      style={{ position:'relative', background:'#0a0805',
-        overflowY:'auto', overflowX:'hidden',
-        flex, minHeight:0, WebkitOverflowScrolling:'touch' }}>
-
-      <img ref={imgRef} src={src}
-        onLoad={scrollToTap}
-        style={{ width:'100%', height:'auto', display:'block',
-          userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none' }}
-        onContextMenu={e=>e.preventDefault()}
-        draggable={false} />
-
-      {/* Page nav */}
-      {totalPages > 1 && (
-        <div style={{ position:'sticky', bottom:0, display:'flex',
-          alignItems:'center', justifyContent:'center', gap:12,
-          padding:'6px 12px', background:'rgba(26,22,18,0.9)',
-          borderTop:`1px solid ${C.bord}` }}>
-          <button onClick={()=>onPageChange(p=>Math.max(0,p-1))}
-            disabled={currentPage===0}
-            style={{background:'none',border:'none',color:C.cream,
-              fontSize:'1.2rem',cursor:'pointer',opacity:currentPage===0?0.3:1}}>←</button>
-          <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.cream}}>
-            p.{currentPage+1} / {totalPages}
-          </span>
-          <button onClick={()=>onPageChange(p=>Math.min(totalPages-1,p+1))}
-            disabled={currentPage===totalPages-1}
-            style={{background:'none',border:'none',color:C.cream,
-              fontSize:'1.2rem',cursor:'pointer',opacity:currentPage===totalPages-1?0.3:1}}>→</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }) {
-  const land = useOrientation();
+  const land    = useOrientation();
   const isLarge = useIsLarge();
 
-  // ── State ──────────────────────────────────────────────────────────
-  const isLoadedExercise = !!savedExercise && !piece;
-  const initGroup = savedExercise ? parseInt(savedExercise.grouping?.match(/\d+/)?.[0]||'4') : null;
-  const [activeGroup,setActiveGroup] = useState(initGroup);
-  const [selNotes,setSelNotes]       = useState(savedExercise ? savedExercise.notes.split(',').filter(Boolean) : []);
-  const [clef,setClef]               = useState(savedExercise?.clef||'treble');
-  const [key,setKey]                 = useState(savedExercise?.key||'C');
-  const [instrTranspose,setInstrTranspose] = useState(0);
-  const [accMode,setAccMode]         = useState('sharp');
-  const [inputTab,setInputTab]       = useState('keys');
-  const [exercises,setExercises]     = useState([]);
-  const [exIdx,setExIdx]             = useState(0);
-  const [generated,setGenerated]     = useState(false);
-  const [docName,setDocName]         = useState(savedExercise?.doc_name||'');
-  const [saving,setSaving]           = useState(false);
-  const [playingIdx,setPlayingIdx]   = useState(-1);
-  const playTimerRef = useRef(null);
-  const [saveMsg,setSaveMsg]         = useState('');
-  const [currentPage,setCurrentPage] = useState(0);
-  const [insertAt,setInsertAt]       = useState(-1);
-  const [editChip,setEditChip]       = useState(null);
-  const [showAttach,setShowAttach]   = useState(false);
-  const [attachPieces,setAttachPieces] = useState([]);
-  const [attachLoading,setAttachLoading] = useState(false);
+  // ── State ─────────────────────────────────────────────────────────────
+  const [activeGroup,    setActiveGroup]    = useState(null);
+  const [instrSelected,  setInstrSelected]  = useState(false);
+  const [instrTranspose, setInstrTranspose] = useState(0);
+  const [clef,           setClef]           = useState('treble');
+  const [selNotes,       setSelNotes]       = useState([]);
+  const [accMode,        setAccMode]        = useState('sharp');
+  const [inputTab,       setInputTab]       = useState('keys');
+  const [insertAt,       setInsertAt]       = useState(-1);
+  const [respellChip,    setRespellChip]    = useState(null); // {idx,y}
+  const [docName,        setDocName]        = useState('');
+  const [generated,      setGenerated]      = useState(false);
+  const [exercises,      setExercises]      = useState([]);
+  const [exIdx,          setExIdx]          = useState(0);
+  const [playingIdx,     setPlayingIdx]     = useState(-1);
+  const [saving,         setSaving]         = useState(false);
+  const [saveMsg,        setSaveMsg]        = useState('');
+  const [micActive,      setMicActive]      = useState(false);
+  const [micStatus,      setMicStatus]      = useState('');
+  const [currentPage,    setCurrentPage]    = useState(0);
 
-  // Auto-generate when loading a saved exercise
+  // Wizard visibility
+  const showStep2 = !!activeGroup;
+  const showStep3 = showStep2 && instrSelected;
+  const showStep4 = showStep3 && selNotes.length > 0;
+
+  // ── Refs ──────────────────────────────────────────────────────────────
+  const acRef        = useRef(null);
+  const pianoRef     = useRef(null);
+  const [pianoMounted, setPianoMounted] = useState(false);
+  const liveStaffRef = useRef(null);
+  const exDivRef     = useRef(null);
+  const micRef       = useRef({active:false,stream:null,ctx:null,analyser:null,timer:null});
+  const playTimerRef = useRef(null);
+
+  // ── Restore saved exercise ────────────────────────────────────────────
   useEffect(()=>{
-    if(isLoadedExercise && initGroup && savedExercise.notes) {
-      const notes = savedExercise.notes.split(',').filter(Boolean);
-      const sec = g2s(initGroup);
-      const pats = MUR_DB.filter(p=>p.section===sec);
-      setExercises(pats.map(p=>({pat:p,abc:null})));
-      setExIdx(0);
-      setGenerated(true);
+    if (savedExercise) {
+      const grp = parseInt(savedExercise.grouping?.match(/\d+/)?.[0]||'4');
+      setActiveGroup(grp);
+      setInstrSelected(true);
+      setClef(savedExercise.clef || 'treble');
+      setSelNotes(savedExercise.notes?.split(',').filter(Boolean) || []);
+      setDocName(savedExercise.doc_name || '');
     }
   },[]);
 
-  const loadAttachPieces = async () => {
-    setAttachLoading(true);
-    try {
-      const r = await sbGet('/rest/v1/pieces?user_email=eq.'+encodeURIComponent(profile.email)+'&order=created_at.desc');
-      setAttachPieces(await r.json()||[]);
-    } catch { setAttachPieces([]); }
-    setAttachLoading(false);
-  };
-
-  // ── Refs ───────────────────────────────────────────────────────────
-  const acRef      = useRef(null);
-  const pianoRef       = useRef(null);
-  const [pianoMounted,setPianoMounted] = useState(false);
-  const exDivRef       = useRef(null);
-  const liveStaffRef   = useRef(null);
-  const micRef     = useRef({active:false,stream:null,ctx:null,analyser:null,timer:null});
-
-  // ── Audio ──────────────────────────────────────────────────────────
+  // ── Audio ─────────────────────────────────────────────────────────────
   function getAC() {
-    if(!acRef.current) acRef.current = new (window.AudioContext||window.webkitAudioContext)();
-    if(acRef.current.state==='suspended') acRef.current.resume();
+    if (!acRef.current) acRef.current = new (window.AudioContext||window.webkitAudioContext)();
+    if (acRef.current.state==='suspended') acRef.current.resume();
     return acRef.current;
   }
   function playNote(n) {
@@ -1259,9 +1262,9 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
     } catch(e){}
   }
 
-  // ── Piano ──────────────────────────────────────────────────────────
+  // ── Piano note list ───────────────────────────────────────────────────
   const PN = useRef(null);
-  if(!PN.current) {
+  if (!PN.current) {
     const notes=[];
     notes.push({name:'A1',white:true},{name:'A#1',white:false},{name:'B1',white:true});
     ['2','3','4','5','6','7'].forEach(o=>{
@@ -1273,22 +1276,25 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
     PN.current=notes;
   }
 
+  // ── addNote / removeNote ──────────────────────────────────────────────
   const addNote = useCallback((raw) => {
-    const spelled = accMode==='flat'&&{'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'}[raw.slice(0,-1)]
-      ? ({'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'}[raw.slice(0,-1)]+raw.slice(-1))
-      : raw;
+    const FLAT_MAP={'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'};
+    const base=raw.slice(0,-1);
+    const spelled = accMode==='flat' && FLAT_MAP[base] ? FLAT_MAP[base]+raw.slice(-1) : raw;
     setSelNotes(prev=>{
-      if(insertAt>=0){
-        const next=[...prev];next.splice(insertAt,0,spelled);return next;
-      }
+      if (insertAt>=0) { const n=[...prev];n.splice(insertAt,0,spelled);return n; }
       return [...prev,spelled];
     });
-    if(insertAt>=0) setInsertAt(i=>i+1);
+    if (insertAt>=0) setInsertAt(i=>i+1);
+    setGenerated(false);
   },[accMode,insertAt]);
 
+  const removeNote = i => setSelNotes(prev=>prev.filter((_,j)=>j!==i));
+
+  // ── Piano SVG ─────────────────────────────────────────────────────────
   useEffect(()=>{
     const svg=pianoRef.current;
-    if(!svg) return;
+    if (!svg) return;
     const pn=PN.current;
     const whites=pn.filter(n=>n.white);
     const VW=1008,VH=130,ww=VW/whites.length,bw=ww*0.58,bh=VH*0.62;
@@ -1299,20 +1305,37 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
       return el;
     }
     whites.forEach((note,i)=>{
-      const r=mkS('rect',{x:i*ww+0.5,y:0.5,width:ww-1,height:VH-1,rx:2,fill:'#fdfaf5',stroke:'#ccc','stroke-width':0.7,'data-note':note.name});
+      const r=mkS('rect',{x:i*ww+0.5,y:0.5,width:ww-1,height:VH-1,rx:2,
+        fill:'#fdfaf5',stroke:'#ccc','stroke-width':0.7,'data-note':note.name});
       svg.appendChild(r);
-      if(note.name.charAt(0)==='C'&&note.name.indexOf('#')===-1){
-        if(note.name==='C4'){
+      if (note.name.charAt(0)==='C' && note.name.indexOf('#')===-1) {
+        if (note.name==='C4') {
           svg.appendChild(mkS('circle',{cx:i*ww+ww/2,cy:VH-16,r:3,fill:'#8b3a1a','pointer-events':'none'}));
         }
-        const t=mkS('text',{x:i*ww+ww/2,y:VH-5,'text-anchor':'middle','font-size':note.name==='C4'?8:6,fill:note.name==='C4'?'#8b3a1a':'#bbb','font-family':'Inconsolata,monospace','pointer-events':'none'});
-        t.textContent=note.name;svg.appendChild(t);
+        const t=mkS('text',{x:i*ww+ww/2,y:VH-5,'text-anchor':'middle',
+          'font-size':note.name==='C4'?8:6,
+          fill:note.name==='C4'?'#8b3a1a':'#bbb',
+          'font-family':'Inconsolata,monospace','pointer-events':'none'});
+        t.textContent=note.name; svg.appendChild(t);
       }
     });
+    const FLAT_NAMES={'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'};
     let wi=0;
     pn.forEach(note=>{
-      if(note.white){wi++;return;}
-      svg.appendChild(mkS('rect',{x:(wi-1)*ww+ww-bw/2+ww*0.07,y:0,width:bw,height:bh,rx:2,fill:'#1a1612',stroke:'#111','stroke-width':0.5,'data-note':note.name}));
+      if (note.white){wi++;return;}
+      const bx=(wi-1)*ww+ww-bw/2+ww*0.07;
+      svg.appendChild(mkS('rect',{x:bx,y:0,width:bw,height:bh,rx:2,
+        fill:'#1a1612',stroke:'#111','stroke-width':0.5,'data-note':note.name}));
+      const baseName=note.name.slice(0,-1);
+      const spelled=accMode==='flat'?(FLAT_NAMES[baseName]||baseName):baseName;
+      const label=spelled.replace('#','♯').replace(/([A-G])b/,'$1♭');
+      const lbl=mkS('text',{x:bx+bw/2,y:bh*0.62,
+        'text-anchor':'middle','dominant-baseline':'middle',
+        'font-size':5.8,'font-weight':'bold',
+        fill:'#c8b89a','font-family':'Inconsolata,monospace',
+        'pointer-events':'none'});
+      lbl.textContent=label;
+      svg.appendChild(lbl);
     });
 
     const handlePress = e => {
@@ -1321,69 +1344,59 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
       let k=document.elementFromPoint(pt.x,pt.y);
       while(k&&k!==svg){if(k.getAttribute&&k.getAttribute('data-note'))break;k=k.parentNode;}
       if(!k||!k.getAttribute||!k.getAttribute('data-note')) return;
-      const raw=k.getAttribute('data-note');const isBlack=raw.indexOf('#')!==-1;
+      const raw=k.getAttribute('data-note'); const isBlack=raw.indexOf('#')!==-1;
       k.setAttribute('fill','#c8601a');
       setTimeout(()=>k.setAttribute('fill',isBlack?'#1a1612':'#fdfaf5'),160);
-      // Always play sound, only add note if group is selected
       playNote(raw);
-      if(!activeGroup) return;
+      if (!activeGroup) return;
       addNote(raw);
     };
 
     svg.addEventListener('click',handlePress);
     let _tx=0,_tswiped=false,_ttimer=null;
-    svg.addEventListener('touchstart',e=>{_tx=e.touches[0].clientX;_tswiped=false;_ttimer=setTimeout(()=>{if(!_tswiped)handlePress(e);_ttimer=null;},150);e.preventDefault();},{passive:false});
-    svg.addEventListener('touchmove',e=>{if(Math.abs(e.touches[0].clientX-_tx)>8){_tswiped=true;if(_ttimer){clearTimeout(_ttimer);_ttimer=null;}}},{passive:true});
-    svg.addEventListener('touchend',e=>{if(_ttimer){clearTimeout(_ttimer);_ttimer=null;if(!_tswiped)handlePress(e);}},{passive:true});
-  },[activeGroup,addNote,pianoMounted]);
+    svg.addEventListener('touchstart',e=>{_tx=e.touches[0].clientX;_tswiped=false;
+      _ttimer=setTimeout(()=>{if(!_tswiped)handlePress(e);_ttimer=null;},150);
+      e.preventDefault();},{passive:false});
+    svg.addEventListener('touchmove',e=>{if(Math.abs(e.touches[0].clientX-_tx)>8){
+      _tswiped=true;if(_ttimer){clearTimeout(_ttimer);_ttimer=null;}}},{passive:true});
+    svg.addEventListener('touchend',e=>{if(_ttimer){clearTimeout(_ttimer);_ttimer=null;
+      if(!_tswiped)handlePress(e);}},{passive:true});
+  },[activeGroup,addNote,pianoMounted,accMode]);
 
-  // ── Live staff preview — renders current notes as simple scale ─────
+  // ── Live staff preview ────────────────────────────────────────────────
   useEffect(()=>{
-    const ABCJS = window.ABCJS;
-    const div = liveStaffRef.current;
-    if(!ABCJS || !div) return;
-    if(!selNotes.length) { div.innerHTML=''; return; }
-    // Build a simple ABC string — one bar of whole notes in current key/clef
-    const keyMap={'C':'C','G':'G','D':'D','A':'A','E':'E','B':'B','Fs':'F#','F':'F','Bb':'Bb','Eb':'Eb','Ab':'Ab','Db':'Db','Gb':'Gb'};
-    const abcKey = keyMap[key]||'C';
-    const abcClef = clef==='bass'?' clef=bass':clef==='alto'?' clef=alto':clef==='tenor'?' clef=tenor':'';
-    // Render as quarter notes, 4 per bar
-    const noteAbc = selNotes.map(n=>{
-      const m=n.match(/^([A-G])(##|bb|#|b|n)?(\d)$/); if(!m) return 'C8';
+    const ABCJS=window.ABCJS; const div=liveStaffRef.current;
+    if(!ABCJS||!div) return;
+    if(!selNotes.length){div.innerHTML='';return;}
+    const abcClef=clef==='bass'?' clef=bass':clef==='alto'?' clef=alto':clef==='tenor'?' clef=tenor':'';
+    const noteAbc=selNotes.map(n=>{
+      const m=n.match(/^([A-G])(##|bb|#|b|n)?(\d)$/);if(!m)return 'C8';
       const pc=m[1],acc=m[2]||'',oct=parseInt(m[3]);
       const prefix=acc==='##'?'^^':acc==='bb'?'__':acc==='#'?'^':acc==='b'?'_':acc==='n'?'=':'';
       const letter=oct<=4?pc:pc.toLowerCase();
-      const octMod=oct===3?',':(oct===2?',,':(oct===1?',,,':(oct===6?"'":(oct===7?"''":''))));
+      const octMod=oct===3?',':(oct===2?',,':(oct===1?',,,':(oct===6?"'":(oct===7?"''":''))))
       return prefix+letter+octMod+'8';
     }).join(' ');
-    const abc=`X:1
-M:4/4
-L:1/32
-K:${abcKey}${abcClef}
-|${noteAbc}|`;
+    const abc=`X:1\nM:4/4\nL:1/32\nK:C${abcClef}\n|${noteAbc}|`;
     try {
-      ABCJS.renderAbc(div, abc, {
-        scale:0.9, staffwidth:Math.min((div.offsetWidth||300)-20,560),
-        paddingright:10,paddingleft:10,paddingbottom:5,paddingtop:5,
-        add_classes:true,
+      ABCJS.renderAbc(div,abc,{
+        scale:1.0,staffwidth:Math.min((div.offsetWidth||400)-20,680),
+        paddingright:10,paddingleft:10,paddingbottom:8,paddingtop:8,add_classes:true,
       });
       div.querySelectorAll('svg path,svg rect,svg ellipse,svg line,svg text').forEach(el=>{
-        el.style.fill='#1a1208'; el.style.stroke='#1a1208';
+        el.style.fill='#1a1208';el.style.stroke='#1a1208';
       });
     } catch(e){}
-  },[selNotes,key,clef]);
+  },[selNotes,clef]);
 
-  // ── ABCJS exercise rendering ───────────────────────────────────────
+  // ── Exercise rendering (small screen) ─────────────────────────────────
   useEffect(()=>{
     if(!generated||!exercises.length) return;
-    const ABCJS=window.ABCJS;
-    if(!ABCJS) return;
-    const ex=exercises[exIdx];
-    if(!ex) return;
-    const div=exDivRef.current;
-    if(!div) return;
+    const ABCJS=window.ABCJS; if(!ABCJS) return;
+    const ex=exercises[exIdx]; if(!ex) return;
+    const div=exDivRef.current; if(!div) return;
     div.innerHTML='';
-    const abc=buildAbcString(ex.pat,selNotes,clef,key);
+    const abc=buildAbcString(ex.pat,selNotes,clef,'C');
     try {
       ABCJS.renderAbc(div,abc,{
         scale:1.1,staffwidth:Math.min(div.offsetWidth-20,860),
@@ -1391,44 +1404,34 @@ K:${abcKey}${abcClef}
         add_classes:true,
         wrap:{minSpacing:1.2,maxSpacing:2.8,preferredMeasuresPerLine:land?4:2}
       });
-      // Force dark ink
       div.querySelectorAll('svg path,svg rect,svg ellipse,svg line,svg text').forEach(el=>{
         el.style.fill='#1a1208';el.style.stroke='#1a1208';
       });
     } catch(e){}
-  },[generated,exIdx,exercises,clef,key,selNotes,land]);
+  },[generated,exIdx,exercises,clef,selNotes,land]);
 
-  // ── Generate ───────────────────────────────────────────────────────
+  // ── Generate ──────────────────────────────────────────────────────────
   const generate = () => {
     if(!activeGroup||!selNotes.length) return;
     const sec=g2s(activeGroup);
-    const pats=MUR_DB.filter(p=>p.section===sec);
-    setExercises(pats.map(p=>({pat:p,abc:null})));
-    setExIdx(0);
-    setGenerated(true);
-    // Log practice session
+    setExercises(MUR_DB.filter(p=>p.section===sec).map(p=>({pat:p})));
+    setExIdx(0); setGenerated(true);
     try {
-      const prof = JSON.parse(localStorage.getItem('murProfile')||'{}');
-      if(prof.email) {
-        sbPost('/rest/v1/practice_log', {
-          user_email: prof.email,
-          piece_id: piece?.id||null,
-          strategy: 'RV',
-          grouping: sec,
-          n_notes: selNotes.length,
-        }).catch(()=>{});
-      }
+      const prof=JSON.parse(localStorage.getItem('murProfile')||'{}');
+      if(prof.email) sbPost('/rest/v1/practice_log',{
+        user_email:prof.email,piece_id:piece?.id||null,strategy:'RV',
+        grouping:g2s(activeGroup),n_notes:selNotes.length,
+      }).catch(()=>{});
     } catch(e){}
   };
 
-  // ── Save ───────────────────────────────────────────────────────────
   const saveExercise = async () => {
     if(!selNotes.length||!activeGroup) return;
     setSaving(true);setSaveMsg('Saving...');
     try {
       await sbPost('/rest/v1/exercises',{
         user_email:profile.email,doc_name:docName.trim()||null,
-        grouping:g2s(activeGroup),clef,key,notes:selNotes.join(','),
+        grouping:g2s(activeGroup),clef,key:'C',notes:selNotes.join(','),
         instrument:profile.instrument||'',
       });
       setSaveMsg('Saved!');setTimeout(()=>setSaveMsg(''),2000);
@@ -1436,10 +1439,10 @@ K:${abcKey}${abcClef}
     setSaving(false);
   };
 
-  // ── Playback ───────────────────────────────────────────────────────
+  // ── Playback ──────────────────────────────────────────────────────────
   const playPassage = () => {
     if(!selNotes.length) return;
-    selNotes.forEach((n,i)=>setTimeout(()=>playNote(n),i*550));
+    selNotes.forEach((n,i)=>setTimeout(()=>playNote(n),i*520));
   };
 
   const stopPlayback = () => {
@@ -1455,8 +1458,7 @@ K:${abcKey}${abcClef}
     const pat=exercises[idx].pat;const bpm=80;const spb=60/bpm;
     const ppr=pat.notes.filter(c=>c.slice(-1)!=='r').length;
     const reps=Math.min(ppr>0?Math.ceil(selNotes.length/ppr):1,32);
-    let pi=0,t=0;const ac=getAC();
-    const scheduled=[];
+    let pi=0,t=0;const ac=getAC();const scheduled=[];
     for(let rep=0;rep<reps;rep++){
       let done=false;
       pat.notes.forEach(code=>{
@@ -1484,11 +1486,8 @@ K:${abcKey}${abcClef}
     playTimerRef.current=setTimeout(()=>setPlayingIdx(-1),(t+0.2)*1000);
   };
 
-  // Keep playExercise for single-exercise mode
-  const playExercise = () => playExerciseAt(exIdx);
-
-  // ── Mic pitch detection ────────────────────────────────────────────
-  const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  // ── Mic ───────────────────────────────────────────────────────────────
+  const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   function autoCorr(buf,sr){
     const SIZE=buf.length;let rms=0;
     for(let i=0;i<SIZE;i++)rms+=buf[i]*buf[i];
@@ -1515,10 +1514,6 @@ K:${abcKey}${abcClef}
     if(m<45||m>108)return null;
     return NOTE_NAMES[m%12]+(Math.floor(m/12)-1);
   }
-
-  const [micStatus,setMicStatus] = useState('');
-  const [micActive,setMicActive] = useState(false);
-
   const toggleMic = async () => {
     const mic=micRef.current;
     if(mic.active){
@@ -1527,8 +1522,7 @@ K:${abcKey}${abcClef}
       if(mic.stream)mic.stream.getTracks().forEach(t=>t.stop());
       if(mic.ctx)mic.ctx.close();
       mic.stream=mic.ctx=mic.analyser=null;
-      setMicActive(false);setMicStatus('');
-      return;
+      setMicActive(false);setMicStatus('');return;
     }
     try {
       const stream=await navigator.mediaDevices.getUserMedia({audio:true});
@@ -1552,13 +1546,15 @@ K:${abcKey}${abcClef}
         if(rms<0.008){noteActive=false;stableCount=0;lastFreq=0;}
         else if(note){
           if(!noteActive){noteActive=true;stableCount=1;lastFreq=freq;}
-          else {
+          else{
             const prev=lastFreq>0?freqToNote(lastFreq):null;
             if(note===prev||Math.abs(freq-lastFreq)/lastFreq<0.10){
               lastFreq=(lastFreq+freq)/2;stableCount++;
               setMicStatus(note+' '+stableCount+'/2');
               if(stableCount>=2){
-                const written=accMode==='flat'&&({'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'}[note.slice(0,-1)])?({'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'}[note.slice(0,-1)]+note.slice(-1)):note;
+                const FLAT_MAP={'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'};
+                const base=note.slice(0,-1);
+                const written=accMode==='flat'&&FLAT_MAP[base]?(FLAT_MAP[base]+note.slice(-1)):note;
                 addNote(written);setMicStatus(written);
                 lockout=now+600;noteActive=false;stableCount=0;lastFreq=0;
               }
@@ -1570,19 +1566,14 @@ K:${abcKey}${abcClef}
       detect();
     } catch(e){setMicStatus('Mic error: '+(e.name||e.message));}
   };
-
   useEffect(()=>()=>{
     const mic=micRef.current;
-    if(mic.active){mic.active=false;if(mic.timer)clearTimeout(mic.timer);if(mic.stream)mic.stream.getTracks().forEach(t=>t.stop());if(mic.ctx)mic.ctx.close();}
+    if(mic.active){mic.active=false;if(mic.timer)clearTimeout(mic.timer);
+      if(mic.stream)mic.stream.getTracks().forEach(t=>t.stop());
+      if(mic.ctx)mic.ctx.close();}
   },[]);
 
-  // ── Chip helpers ───────────────────────────────────────────────────
-  const removeNote = i => { setSelNotes(prev=>prev.filter((_,j)=>j!==i)); };
-  const flipNote   = i => { setSelNotes(prev=>{const n=[...prev];n[i]=((n2,idx)=>{const m=n2.match(/^([A-G])(##|bb|#|b)?(\d)$/);if(!m)return n2;const pc=m[1]+(m[2]||''),oct=parseInt(m[3]),next={'C':'B#','B#':'C##','C##':'Db','Db':'C#','C#':'Dbb','Dbb':'C','D':'D##','D##':'Ebb','Ebb':'D#','D#':'Eb','Eb':'D','E':'Fb','Fb':'Ebb','E#':'F','F':'E#','F#':'Gb','Gb':'F##','F##':'G','G':'Gbb','Gbb':'F#','G#':'Ab','Ab':'G##','G##':'A','A':'Abb','Abb':'G#','A#':'Bb','Bb':'A##','A##':'B','B':'Cbb','Cbb':'A#','B#':'C','Cb':'B'}[pc];if(!next)return n2;return next+((pc==='B#')?oct+1:(pc==='Cb')?oct-1:oct);})(n[i],i);return n;}); };
-
-  const canGenerate = activeGroup && selNotes.length>0;
-
-  // ── Group buttons ──────────────────────────────────────────────────
+  // ── Group button SVGs ─────────────────────────────────────────────────
   const GRP_SVGS = {
     3: <svg viewBox="0 0 52 36" width="42" height="28"><line x1="11" y1="7" x2="39" y2="7" stroke="#f5f0e8" strokeWidth="2.5"/><line x1="11" y1="7" x2="11" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="6" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,6,30)"/><line x1="25" y1="7" x2="25" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="20" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,20,30)"/><line x1="39" y1="7" x2="39" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="34" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,34,30)"/></svg>,
     4: <svg viewBox="0 0 54 36" width="42" height="28"><line x1="10" y1="7" x2="49" y2="7" stroke="#f5f0e8" strokeWidth="2.5"/><line x1="10" y1="12" x2="49" y2="12" stroke="#f5f0e8" strokeWidth="2.5"/><line x1="10" y1="7" x2="10" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="5" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,5,30)"/><line x1="23" y1="7" x2="23" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="18" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,18,30)"/><line x1="36" y1="7" x2="36" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="31" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,31,30)"/><line x1="49" y1="7" x2="49" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="44" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,44,30)"/></svg>,
@@ -1592,135 +1583,84 @@ K:${abcKey}${abcClef}
     8: <svg viewBox="0 0 90 36" width="68" height="28"><line x1="9" y1="7" x2="86" y2="7" stroke="#f5f0e8" strokeWidth="2.5"/><line x1="9" y1="12" x2="86" y2="12" stroke="#f5f0e8" strokeWidth="2.5"/><line x1="9" y1="7" x2="9" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="4" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,4,30)"/><line x1="20" y1="7" x2="20" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="15" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,15,30)"/><line x1="31" y1="7" x2="31" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="26" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,26,30)"/><line x1="42" y1="7" x2="42" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="37" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,37,30)"/><line x1="53" y1="7" x2="53" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="48" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,48,30)"/><line x1="64" y1="7" x2="64" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="59" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,59,30)"/><line x1="75" y1="7" x2="75" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="70" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,70,30)"/><line x1="86" y1="7" x2="86" y2="28" stroke="#f5f0e8" strokeWidth="1.8"/><ellipse cx="81" cy="30" rx="5.5" ry="3.5" fill="#f5f0e8" transform="rotate(-20,81,30)"/></svg>,
   };
 
-  // ── Score panel ────────────────────────────────────────────────────
-  const AttachPanel = (
-    <div style={{background:C.panel,border:`1px dashed ${C.bord2}`,padding:'16px',
-      display:'flex',flexDirection:'column',gap:10,flexShrink:0}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'0.95rem',color:C.muted}}>
-          No score attached &mdash; optional
-        </div>
-        <button onClick={()=>{setShowAttach(s=>!s);if(!showAttach)loadAttachPieces();}}
-          style={{background:'none',border:`1px solid ${C.bord2}`,color:C.cream,
-            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.72rem',
-            letterSpacing:'0.1em',padding:'4px 12px',cursor:'pointer',flexShrink:0}}>
-          {showAttach?'CANCEL':'ATTACH SCORE'}
-        </button>
-      </div>
-      {showAttach && (
-        <div style={{maxHeight:180,overflowY:'auto'}}>
-          {attachLoading && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted,padding:8}}>Loading...</div>}
-          {attachPieces.map(p=>(
-            <div key={p.id} onClick={()=>{/* would need to trigger PDF load in parent — for now just note */setShowAttach(false);setSaveMsg('Score attached — reload to see it');}}
-              style={{padding:'10px 12px',borderBottom:`1px solid ${C.bord}`,cursor:'pointer',
-                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
-                letterSpacing:'0.08em',color:C.cream}}
-              onMouseEnter={e=>e.currentTarget.style.background=C.ink}
-              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-              {p.title||'Untitled'}
-              <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.65rem',color:C.muted,marginLeft:8}}>{p.file_type?.toUpperCase()}</span>
-            </div>
-          ))}
-        </div>
-      )}
+  // ── Section header helper ─────────────────────────────────────────────
+  const SH = ({title,right}) => (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+      padding:'10px 28px',borderBottom:`1px solid ${C.bord}`,flexShrink:0,
+      background:'#0e0c09'}}>
+      <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.78rem',
+        letterSpacing:'0.25em',color:C.cream}}>{title}</span>
+      {right}
     </div>
   );
 
-  const ScorePanel = pageImages.length>0 ? (
-    <ZoomableScore
-      src={pageImages[currentPage]}
-      tapPos={tapPos}
-      currentPage={currentPage}
-      totalPages={pageImages.length}
-      onPageChange={setCurrentPage}
-      flex={land?'1 1 0':'0 0 42%'}
+  // ── Chip insert button ────────────────────────────────────────────────
+  const InsBtn = ({idx}) => (
+    <button onClick={()=>setInsertAt(insertAt===idx?-1:idx)} style={{
+      width:18,height:18,borderRadius:'50%',flexShrink:0,
+      border:`1px solid ${insertAt===idx?C.accent:C.bord}`,
+      background:insertAt===idx?C.accent:'none',
+      color:insertAt===idx?'white':C.rule,
+      cursor:'pointer',padding:0,fontSize:'0.7rem',lineHeight:1,
+      WebkitTapHighlightColor:'transparent',
+    }}>+</button>
+  );
+
+  const patternCount = MUR_DB.filter(p=>p.section===g2s(activeGroup)).length;
+
+  // ── Large-screen all-exercises view ───────────────────────────────────
+  const AllExView = generated && exercises.length>0 && isLarge && (
+    <AllExercisesView
+      exercises={exercises} selNotes={selNotes} clef={clef} murKey="C"
+      playingIdx={playingIdx} onPlay={playExerciseAt} land={land}
     />
-  ) : null;
-
-  // ── Exercise display ───────────────────────────────────────────────
-  // Large screen: all exercises rendered at once, each with its own play button
-  // Small screen: one at a time with nav arrows
-  const ExercisePanelLarge = generated && exercises.length>0 && (
-    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        padding:'6px 14px',flexShrink:0,background:C.ink,borderBottom:`1px solid ${C.bord}`}}>
-        <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted}}>
-          {exercises.length} patterns
-        </div>
-        <Btn onClick={()=>setGenerated(false)} style={{fontSize:'0.75rem',padding:'5px 12px'}}>
-          ← EDIT PASSAGE
-        </Btn>
-        {isLoadedExercise && <Btn onClick={()=>{setShowAttach(s=>!s);if(!showAttach)loadAttachPieces();}}
-          style={{fontSize:'0.75rem',padding:'5px 12px',borderColor:C.bord2}}>
-          {showAttach?'CANCEL':'ATTACH SCORE'}
-        </Btn>}
-      </div>
-      {showAttach && (
-        <div style={{flexShrink:0,background:C.panel,borderBottom:`1px solid ${C.bord}`,padding:'8px 14px'}}>
-          {attachLoading && <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted}}>Loading...</span>}
-          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-            {attachPieces.map(p=>(
-              <button key={p.id} onClick={()=>setShowAttach(false)}
-                style={{background:C.panel,border:`1px solid ${C.bord2}`,color:C.cream,
-                  fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.8rem',
-                  letterSpacing:'0.08em',padding:'5px 12px',cursor:'pointer'}}>
-                {p.title||'Untitled'}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      <AllExercisesView exercises={exercises} selNotes={selNotes} clef={clef} murKey={key} playingIdx={playingIdx} onPlay={playExerciseAt} land={land} />
-    </div>
   );
 
-  const ExercisePanelSmall = generated && exercises.length>0 && (
+  // ── Small-screen single exercise ──────────────────────────────────────
+  const SmallExView = generated && exercises.length>0 && !isLarge && (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
         padding:'6px 14px',flexShrink:0,background:C.ink,borderTop:`1px solid ${C.bord}`}}>
         <button onClick={()=>setExIdx(i=>Math.max(0,i-1))} disabled={exIdx===0}
           style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
-            width:36,height:36,cursor:'pointer',fontSize:'1rem',opacity:exIdx===0?0.35:1}}>&#8592;</button>
+            width:36,height:36,cursor:'pointer',fontSize:'1rem',opacity:exIdx===0?0.35:1}}>←</button>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted}}>
             {exIdx+1} / {exercises.length}
           </span>
-          <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.7rem',color:C.muted}}>
-            {exercises[exIdx]?.pat.timeSig}
-          </span>
           <button onClick={()=>playExerciseAt(exIdx)}
-            style={{background:playingIdx===exIdx?C.accent:'none',border:`1px solid ${playingIdx===exIdx?C.accent:C.bord}`,
+            style={{background:playingIdx===exIdx?C.accent:'none',
+              border:`1px solid ${playingIdx===exIdx?C.accent:C.bord}`,
               color:'white',width:30,height:30,borderRadius:'50%',cursor:'pointer',fontSize:'0.75rem'}}>
             {playingIdx===exIdx?'⏸':'▶'}
           </button>
         </div>
-        <button onClick={()=>setExIdx(i=>Math.min(exercises.length-1,i+1))} disabled={exIdx===exercises.length-1}
+        <button onClick={()=>setExIdx(i=>Math.min(exercises.length-1,i+1))}
+          disabled={exIdx===exercises.length-1}
           style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
-            width:36,height:36,cursor:'pointer',fontSize:'1rem',opacity:exIdx===exercises.length-1?0.35:1}}>&#8594;</button>
+            width:36,height:36,cursor:'pointer',fontSize:'1rem',
+            opacity:exIdx===exercises.length-1?0.35:1}}>→</button>
       </div>
       <div ref={exDivRef} style={{background:'white',flex:'1 1 0',overflowY:'auto',padding:'8px 12px'}} />
     </div>
   );
 
-  const ExercisePanel = isLarge ? ExercisePanelLarge : ExercisePanelSmall;
+  // ── Controls panel (scrollable) ───────────────────────────────────────
+  const ControlsPanel = (
+    <div style={{flex:'1 1 0',minHeight:0,overflowY:'auto',background:C.ink}}
+      onClick={()=>setRespellChip(null)}>
 
-  // ── Input panel ────────────────────────────────────────────────────
-  const InputPanel = (
-    <div style={{display:'flex',flexDirection:'column',flex:pageImages.length>0?'1 1 0':'1 1 0',
-      minHeight:0,overflowY:'auto',background:C.ink}}>
-
-      {/* Step 1: grouping */}
-      <div style={{padding:'10px 14px',borderBottom:`1px solid ${C.bord}`,flexShrink:0}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.88rem',letterSpacing:'0.14em',
-          color:C.rule,marginBottom:5}}>NOTE GROUPING OF THE PASSAGE <span style={{color:'#e06060',fontSize:'0.65rem',verticalAlign:'middle',marginLeft:2}}>required</span></div>
+      {/* STEP 1: Note Grouping */}
+      <SH title="NOTE GROUPING OF PASSAGE" />
+      <div style={{padding:'12px 28px 16px',borderBottom:`1px solid ${C.bord}`}}>
         <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
           {[3,4,5,6,7,8].map(n=>(
-            <button key={n} onClick={()=>setActiveGroup(n)} style={{
-              minWidth:52,height:68,border:`2px solid ${activeGroup===n?C.accent:'#2a231d'}`,
+            <button key={n} onClick={()=>{setActiveGroup(n);setGenerated(false);}} style={{
+              minWidth:56,height:72,border:`2px solid ${activeGroup===n?C.accent:'#2a231d'}`,
               background:activeGroup===n?C.accent:'transparent',
               cursor:'pointer',display:'flex',flexDirection:'column',
               alignItems:'center',justifyContent:'flex-end',padding:'4px 4px 6px',gap:2,
-              WebkitTapHighlightColor:'transparent',
+              WebkitTapHighlightColor:'transparent',transition:'all 0.12s',
             }}>
               {GRP_SVGS[n]}
               <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,
@@ -1730,255 +1670,335 @@ K:${abcKey}${abcClef}
         </div>
       </div>
 
-      {/* Step 2: clef/key/instrument */}
-      <div style={{padding:'8px 14px',borderBottom:`1px solid ${C.bord}`,
-        display:'flex',gap:12,flexWrap:'wrap',flexShrink:0,alignItems:'flex-end'}}>
-        <div style={{display:'flex',flexDirection:'column',gap:4,minWidth:100}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.8rem',letterSpacing:'0.15em',color:C.rule}}>CLEF</div>
-          <div style={{position:'relative'}}>
-            <select value={clef} onChange={e=>setClef(e.target.value)} style={{width:'auto',minWidth:90}}>
-              <option value="treble">Treble</option><option value="bass">Bass</option>
-              <option value="alto">Alto</option><option value="tenor">Tenor</option>
-            </select>
-            <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',color:C.muted,pointerEvents:'none'}}>&#9662;</span>
+      {/* STEP 2: Instrument Setup */}
+      {showStep2 && (
+        <>
+          <SH title="INSTRUMENT SETUP" />
+          <div style={{padding:'12px 28px 16px',borderBottom:`1px solid ${C.bord}`,
+            display:'flex',gap:20,flexWrap:'wrap',alignItems:'flex-end'}}>
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
+                letterSpacing:'0.22em',color:C.muted}}>CLEF</div>
+              <div style={{position:'relative'}}>
+                <select value={clef} onChange={e=>setClef(e.target.value)}
+                  style={{minWidth:90,appearance:'none',WebkitAppearance:'none',
+                    background:'#1a1410',border:`1px solid ${C.bord}`,color:C.cream,
+                    padding:'7px 26px 7px 10px',fontFamily:"'Cormorant Garamond',serif",fontSize:'0.9rem',cursor:'pointer'}}>
+                  <option value="treble">Treble</option>
+                  <option value="bass">Bass</option>
+                  <option value="alto">Alto</option>
+                  <option value="tenor">Tenor</option>
+                </select>
+                <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',
+                  color:C.muted,pointerEvents:'none',fontSize:'0.65rem'}}>▾</span>
+              </div>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:4,flex:1,minWidth:160}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
+                letterSpacing:'0.22em',color:C.muted}}>INSTRUMENT</div>
+              <div style={{position:'relative'}}>
+                <select value={instrTranspose}
+                  onChange={e=>{setInstrTranspose(parseInt(e.target.value));setInstrSelected(true);}}
+                  style={{width:'100%',appearance:'none',WebkitAppearance:'none',
+                    background:'#1a1410',border:`1px solid ${C.bord}`,color:C.cream,
+                    padding:'7px 26px 7px 10px',fontFamily:"'Cormorant Garamond',serif",fontSize:'0.9rem',cursor:'pointer'}}>
+                  <option value="" disabled={instrSelected}>Select instrument...</option>
+                  <option value="0">Flute</option><option value="0">Oboe</option>
+                  <option value="-2">B♭ Clarinet</option><option value="-3">A Clarinet</option>
+                  <option value="0">Bassoon</option><option value="3">E♭ Alto Sax</option>
+                  <option value="-2">Tenor Sax</option><option value="-7">E♭ Bari Sax</option>
+                  <option value="-5">Horn in F</option><option value="-2">B♭ Trumpet</option>
+                  <option value="0">Trombone</option><option value="0">Violin</option>
+                  <option value="0">Viola</option><option value="0">Cello</option>
+                  <option value="0">Piano</option><option value="0">Other (Concert Pitch)</option>
+                </select>
+                <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',
+                  color:C.muted,pointerEvents:'none',fontSize:'0.65rem'}}>▾</span>
+              </div>
+            </div>
           </div>
-        </div>
+        </>
+      )}
 
-        <div style={{display:'flex',flexDirection:'column',gap:4,flex:1,minWidth:140}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.8rem',letterSpacing:'0.15em',color:C.rule}}>INSTRUMENT</div>
-          <div style={{position:'relative'}}>
-            <select value={instrTranspose} onChange={e=>setInstrTranspose(parseInt(e.target.value))} style={{width:'100%'}}>
-              <option value="0">Concert Pitch</option>
-              <option value="0">Flute</option><option value="0">Oboe</option>
-              <option value="-2">B&#9837; Clarinet</option><option value="-3">A Clarinet</option>
-              <option value="0">Bassoon</option><option value="3">E&#9837; Alto Sax</option>
-              <option value="-2">Tenor Sax</option><option value="-7">E&#9837; Bari Sax</option>
-              <option value="-5">Horn in F</option><option value="-2">B&#9837; Trumpet</option>
-              <option value="0">Trombone</option><option value="0">Violin</option>
-              <option value="0">Viola</option><option value="0">Cello</option>
-              <option value="0">Piano</option>
-            </select>
-            <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',color:C.muted,pointerEvents:'none'}}>&#9662;</span>
-          </div>
-        </div>
-      </div>
+      {/* STEP 3: Enter Your Passage */}
+      {showStep3 && (
+        <>
+          <SH title="ENTER YOUR PASSAGE" right={
+            <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.55rem',
+                letterSpacing:'0.18em',color:C.muted}}>NOTE ENTRY METHOD</span>
+              {['keys','mic'].map(t=>(
+                <button key={t} onClick={()=>setInputTab(t)} style={{
+                  padding:'4px 12px',
+                  background:inputTab===t?C.accent:'none',
+                  border:`1px solid ${inputTab===t?C.accent:'rgba(245,240,232,0.25)'}`,
+                  color:inputTab===t?'white':'rgba(245,240,232,0.7)',
+                  fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.68rem',
+                  letterSpacing:'0.1em',cursor:'pointer',borderRadius:2,
+                  WebkitTapHighlightColor:'transparent',
+                }}>
+                  {t==='keys'?'🎹 KEYBOARD':'● RECORD'}
+                </button>
+              ))}
+              <button onClick={()=>setAccMode(m=>m==='sharp'?'flat':'sharp')} style={{
+                padding:'4px 10px',
+                background:'none',border:`1px solid rgba(245,240,232,0.25)`,
+                color:'rgba(245,240,232,0.7)',
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.68rem',
+                letterSpacing:'0.1em',cursor:'pointer',borderRadius:2,
+                WebkitTapHighlightColor:'transparent',
+              }}>{accMode==='sharp'?'SHARPS':'FLATS'}</button>
+              <button onClick={()=>{setSelNotes([]);setInsertAt(-1);setRespellChip(null);setGenerated(false);}} style={{
+                padding:'4px 10px',background:'none',
+                border:`1px solid rgba(245,240,232,0.25)`,
+                color:'rgba(245,240,232,0.7)',
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.68rem',
+                letterSpacing:'0.1em',cursor:'pointer',borderRadius:2,
+                WebkitTapHighlightColor:'transparent',
+              }}>CLEAR</button>
+            </div>
+          } />
 
-      {/* Step 3: note input tabs */}
-      <div style={{display:'flex',borderBottom:`1px solid ${C.bord}`,flexShrink:0}}>
-        {['keys','mic'].map(t=>(
-          <button key={t} onClick={()=>setInputTab(t)} style={{
-            background:'none',border:'none',
-            borderBottom:`2px solid ${inputTab===t?C.accent:'transparent'}`,
-            color:inputTab===t?C.cream:C.muted,
-            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
-            letterSpacing:'0.1em',padding:'7px 16px',cursor:'pointer',
-          }}>{t==='keys'?'\u266A KEYBOARD':'\u25CF RECORD'}</button>
-        ))}
-        <button onClick={()=>setAccMode(m=>m==='sharp'?'flat':'sharp')} style={{
-          marginLeft:'auto',background:'none',border:'none',
-          color:C.muted,fontFamily:"'Bebas Neue',sans-serif",
-          fontSize:'0.65rem',letterSpacing:'0.1em',padding:'7px 14px',cursor:'pointer',
-        }}>{accMode==='sharp'?'\u266F Sharps ⇄ \u266D Flats':'\u266F Sharps ⇄ \u266D Flats'}</button>
-      </div>
+          {/* Keyboard */}
+          {inputTab==='keys' && (
+            <>
+              <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch',touchAction:'pan-x'}}>
+                <svg ref={el=>{pianoRef.current=el;if(el&&!pianoMounted)setPianoMounted(true);}}
+                  viewBox="0 0 1008 130" preserveAspectRatio="none"
+                  style={{width:2200,height:200,display:'block',cursor:'pointer',touchAction:'none'}} />
+              </div>
+              <div style={{background:'#0e0c09',padding:'5px 0',textAlign:'center'}}>
+                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
+                  letterSpacing:'0.2em',color:'rgba(245,240,232,0.35)'}}>
+                  ← DRAG TO SCROLL KEYBOARD →
+                </span>
+              </div>
+              <div style={{textAlign:'center',padding:'2px 0 4px',background:'#0e0c09'}}>
+                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.55rem',
+                  letterSpacing:'0.15em',color:'rgba(245,240,232,0.3)'}}>
+                  🔔 ENSURE DEVICE IS NOT MUTED
+                </span>
+              </div>
+            </>
+          )}
 
-      {/* Keyboard */}
-      {inputTab==='keys' && (
-        <div style={{flexShrink:0,position:'relative'}}>
-          {!activeGroup && (
-            <div style={{
-              position:'absolute',inset:0,zIndex:10,
-              background:'rgba(26,22,18,0.85)',
-              display:'flex',alignItems:'center',justifyContent:'center',
-            }}>
+          {/* Mic */}
+          {inputTab==='mic' && (
+            <div style={{padding:'24px',textAlign:'center',background:'#0e0c09'}}>
+              <button onClick={toggleMic} style={{
+                width:80,height:80,borderRadius:'50%',
+                background:micActive?'rgba(229,53,53,0.2)':'rgba(139,58,26,0.15)',
+                border:`3px solid ${micActive?'#e53535':C.accent}`,
+                cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',
+              }}>
+                <div style={{width:32,height:32,background:micActive?'#e53535':C.accent,
+                  borderRadius:micActive?4:'50%',transition:'all 0.2s'}} />
+              </button>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+                letterSpacing:'0.2em',color:'rgba(245,240,232,0.7)',marginTop:10}}>
+                {micActive?'RECORDING — TAP TO STOP':'TAP TO RECORD'}
+              </div>
+              {micStatus && <div style={{fontFamily:"'Bebas Neue',sans-serif",
+                fontSize:'2rem',color:C.accent,marginTop:4}}>{micStatus}</div>}
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                fontSize:'1rem',color:C.cream,textAlign:'center',padding:'0 28px',lineHeight:1.5}}>
-                Select a note grouping above<br/>before entering notes
+                fontSize:'0.9rem',color:'rgba(245,240,232,0.7)',maxWidth:380,margin:'8px auto 0',lineHeight:1.5}}>
+                Play each note separately — one at a time with a brief silence between notes.
               </div>
             </div>
           )}
-          <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
-            <svg ref={el=>{pianoRef.current=el;if(el&&!pianoMounted)setPianoMounted(true);}} viewBox="0 0 1008 130" preserveAspectRatio="none"
-              style={{width:2000,height:160,display:'block',cursor:activeGroup?'pointer':'not-allowed',touchAction:'none',opacity:activeGroup?1:0.4}} />
-          </div>
-        </div>
-      )}
 
-      {/* Mic */}
-      {inputTab==='mic' && (
-        <div style={{padding:'20px 14px',textAlign:'center',flexShrink:0}}>
-          <button onClick={toggleMic} style={{
-            width:72,height:72,borderRadius:'50%',
-            background:micActive?'rgba(229,53,53,0.2)':'rgba(139,58,26,0.15)',
-            border:`3px solid ${micActive?'#e53535':C.accent}`,
-            cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',
-          }}>
-            <div style={{width:28,height:28,background:micActive?'#e53535':C.accent,borderRadius:micActive?4:'50%',transition:'all 0.2s'}} />
-          </button>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',letterSpacing:'0.15em',color:C.muted,marginTop:8}}>
-            {micActive?'RECORDING — TAP TO STOP':'TAP TO RECORD'}
-          </div>
-          {micStatus && <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',color:C.accent,marginTop:4}}>{micStatus}</div>}
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'0.9rem',color:C.muted,marginTop:8,maxWidth:300,margin:'8px auto 0'}}>
-            Play each note clearly with a brief silence between
-          </div>
-        </div>
-      )}
-
-      {/* Live staff preview */}
-      {selNotes.length>0 && (
-        <div ref={liveStaffRef}
-          style={{background:'white',flexShrink:0,
-            padding:'4px 14px',borderTop:`1px solid ${C.bord}`,
-            minHeight:60,overflowX:'auto'}} />
-      )}
-
-      {/* Chips */}
-      <div style={{padding:'8px 14px',flexShrink:0}}>
-        <div style={{display:'flex',flexWrap:'wrap',gap:4,minHeight:28,alignItems:'center'}}>
-          {selNotes.length===0 && <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',color:C.muted}}>{activeGroup ? 'Play a key to enter notes' : 'Select a grouping above first'}</span>}
-          {selNotes.map((n,i)=>(
-            <React.Fragment key={i}>
-              <button onClick={()=>setInsertAt(insertAt===i?-1:i)} style={{
-                width:14,height:14,borderRadius:'50%',border:`1px solid ${insertAt===i?C.accent:C.bord}`,
-                background:insertAt===i?C.accent:'none',cursor:'pointer',padding:0,color:C.cream,fontSize:'0.55rem',flexShrink:0,
-              }}>+</button>
-              <span
-                style={{
-                  background:editChip?.idx===i?C.accentH:C.accent,
-                  color:'white',fontFamily:"'Inconsolata',monospace",
-                  fontSize:'0.8rem',padding:'4px 9px',display:'inline-flex',
-                  alignItems:'center',cursor:'pointer',
-                  border:`1px solid ${editChip?.idx===i?C.rule:'transparent'}`,
-                  transition:'background 0.1s',userSelect:'none',
-                  WebkitTapHighlightColor:'transparent',
-                }}
-                onClick={e=>{
-                  e.stopPropagation();
-                  if(editChip?.idx===i){setEditChip(null);return;}
-                  setEditChip({idx:i,y:e.currentTarget.getBoundingClientRect().top});
-                }}>
-                {dn(n)}
-              </span>
-            </React.Fragment>
-          ))}
+          {/* Live staff */}
           {selNotes.length>0 && (
-            <button onClick={()=>setInsertAt(insertAt===selNotes.length?-1:selNotes.length)} style={{
-              width:14,height:14,borderRadius:'50%',border:`1px solid ${insertAt===selNotes.length?C.accent:C.bord}`,
-              background:insertAt===selNotes.length?C.accent:'none',cursor:'pointer',padding:0,color:C.cream,fontSize:'0.55rem',flexShrink:0,
-            }}>+</button>
+            <div ref={liveStaffRef} style={{background:'white',overflowX:'auto',
+              WebkitOverflowScrolling:'touch',padding:'4px 14px',
+              borderTop:`1px solid ${C.bord}`,minHeight:80}} />
           )}
-        </div>
-        {selNotes.length>0 && (
-          <div style={{display:'flex',gap:8,marginTop:8,alignItems:'center',flexWrap:'wrap'}}>
-            <button onClick={playPassage} style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,padding:'4px 12px',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',letterSpacing:'0.1em',cursor:'pointer'}}>
-              &#9654; PLAY
-            </button>
-            <button onClick={()=>{setSelNotes([]);setInsertAt(-1);setEditChip(null);setGenerated(false);}} style={{background:'none',border:`1px solid ${C.bord}`,color:'#e57373',padding:'4px 12px',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',letterSpacing:'0.1em',cursor:'pointer'}}>
-              CLEAR
-            </button>
-            <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.65rem',color:C.muted}}>
-              {selNotes.length} note{selNotes.length!==1?'s':''} &nbsp;&middot;&nbsp; {MUR_DB.filter(p=>p.section===g2s(activeGroup)).length||'—'} patterns
-            </span>
-          </div>
-        )}
-      </div>
 
-      {/* Generate + Save */}
-      <div style={{padding:'8px 14px 14px',flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
-        <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
-          placeholder="Document name (optional)" style={{fontSize:'0.85rem',padding:'7px 10px'}} />
-        <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:8}}>
-          <Btn onClick={generate} disabled={!canGenerate} big full
-            style={{background:canGenerate?C.accent:'transparent',color:canGenerate?'white':C.dim,borderColor:canGenerate?C.accent:C.bord}}>
-            GENERATE EXERCISES
-          </Btn>
-          <Btn onClick={saveExercise} disabled={!canGenerate||saving} full
-            style={{fontSize:'0.75rem',color:C.cream,borderColor:C.bord2}}>
-            {saving?'SAVING...':'SAVE'}
-          </Btn>
-        </div>
-        {saveMsg && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.gold}}>{saveMsg}</div>}
-      </div>
+          {/* Drag to scroll notes band */}
+          {selNotes.length>0 && (
+            <div style={{background:C.accent,padding:'5px 0',textAlign:'center'}}>
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.55rem',
+                letterSpacing:'0.2em',color:'rgba(255,255,255,0.7)'}}>
+                ← DRAG TO SCROLL NOTES →
+              </span>
+            </div>
+          )}
+
+          {/* Chips row */}
+          <div style={{padding:'10px 28px 6px'}}>
+            {respellChip!==null && (
+              <RespellPopup
+                note={selNotes[respellChip.idx]}
+                anchorY={respellChip.y}
+                onClose={()=>setRespellChip(null)}
+                onDelete={()=>{removeNote(respellChip.idx);setRespellChip(null);}}
+                onUpdate={newNote=>{
+                  setSelNotes(prev=>{const n=[...prev];n[respellChip.idx]=newNote;return n;});
+                  setRespellChip(prev=>({...prev}));
+                }}
+              />
+            )}
+            {selNotes.length===0 ? (
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
+                letterSpacing:'0.1em',color:'#888'}}>No notes entered</span>
+            ) : (
+              <div style={{display:'flex',flexWrap:'wrap',gap:4,alignItems:'center',
+                overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+                <InsBtn idx={0} />
+                {selNotes.map((n,i)=>(
+                  <React.Fragment key={i}>
+                    <span
+                      onClick={e=>{
+                        e.stopPropagation();
+                        if(respellChip?.idx===i){setRespellChip(null);return;}
+                        setRespellChip({idx:i,y:e.currentTarget.getBoundingClientRect().top});
+                      }}
+                      style={{
+                        background:respellChip?.idx===i?C.accentH:C.accent,
+                        color:'white',fontFamily:"'Inconsolata',monospace",
+                        fontSize:'0.78rem',padding:'3px 8px 3px 10px',
+                        display:'inline-flex',alignItems:'center',gap:3,
+                        cursor:'pointer',userSelect:'none',
+                        WebkitTapHighlightColor:'transparent',
+                        animation:'pop 0.1s ease',
+                      }}>
+                      {dn(n)}
+                    </span>
+                    <InsBtn idx={i+1} />
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+            {selNotes.length>0 && (
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
+                letterSpacing:'0.1em',color:'#aaa',marginTop:6}}>
+                <strong style={{color:'white'}}>{selNotes.length}</strong> PITCHES · <strong style={{color:'white'}}>{patternCount||'—'}</strong> PATTERNS
+              </div>
+            )}
+            {insertAt>=0 && (
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                marginTop:6,padding:'5px 0',borderTop:`1px solid ${C.bord}`}}>
+                <span style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                  fontSize:'0.85rem',color:C.cream}}>Tap a key to insert at marked position</span>
+                <button onClick={()=>setInsertAt(-1)} style={{
+                  background:'none',border:`1px solid rgba(255,255,255,0.3)`,
+                  color:'rgba(255,255,255,0.8)',padding:'2px 10px',
+                  fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
+                  letterSpacing:'0.1em',cursor:'pointer'}}>CANCEL</button>
+              </div>
+            )}
+          </div>
+
+          {/* Play passage */}
+          {selNotes.length>0 && (
+            <div style={{padding:'0 28px 8px'}}>
+              <button onClick={playPassage} style={{
+                width:'100%',padding:'10px',background:'#2a231d',
+                border:`1px solid ${C.bord}`,color:C.cream,
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.95rem',
+                letterSpacing:'0.12em',cursor:'pointer',
+                WebkitTapHighlightColor:'transparent',
+              }}>▶ PLAY PASSAGE</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* STEP 4: Generate */}
+      {showStep4 && !generated && (
+        <>
+          <SH title="GENERATE" />
+          <div style={{padding:'14px 28px 20px'}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
+              letterSpacing:'0.22em',color:C.muted,marginBottom:5}}>DOCUMENT NAME</div>
+            <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
+              placeholder="e.g. Brahms mvt 1"
+              style={{width:'100%',background:'#1a1410',border:`1px solid ${C.bord}`,
+                color:C.cream,padding:'8px 10px',fontFamily:"'Inconsolata',monospace",
+                fontSize:'0.82rem',outline:'none',boxSizing:'border-box',marginBottom:10}} />
+            <button onClick={generate} style={{
+              width:'100%',padding:'13px',background:C.accent,border:'none',
+              color:'white',fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
+              letterSpacing:'0.12em',cursor:'pointer',
+              WebkitTapHighlightColor:'transparent',
+            }}>GENERATE EXERCISES</button>
+            {saveMsg && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',
+              color:C.gold,marginTop:8}}>{saveMsg}</div>}
+          </div>
+        </>
+      )}
+
+      {/* Generated — small screen */}
+      {SmallExView}
+
     </div>
   );
 
-  // ── Layout ─────────────────────────────────────────────────────────
+  // ── Layout ────────────────────────────────────────────────────────────
+  const hasScore = pageImages.length>0;
   return (
-    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,position:'relative'}}
-      onClick={()=>setEditChip(null)}>
-      {editChip!==null && (
-        <ChipPopup
-          note={selNotes[editChip.idx]}
-          anchorY={editChip.y}
-          onClose={()=>setEditChip(null)}
-          onDelete={()=>{removeNote(editChip.idx);setEditChip(null);}}
-          onUpdate={note=>{
-            setSelNotes(prev=>{const n=[...prev];n[editChip.idx]=note;return n;});
-            setEditChip(prev=>({...prev}));
-          }}
-          onRespell={()=>{flipNote(editChip.idx);setEditChip(prev=>({...prev}));}}
-        />
-      )}
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <TopBar
         left={<BackBtn onClick={onBack} />}
-        center={piece?.title||(savedExercise?.doc_name?savedExercise.doc_name:'RHYTHMIC VARIATION')}
-        right={null}
+        center={piece?.title||(savedExercise?.doc_name||'RHYTHMIC VARIATION')}
+        right={generated ? (
+          <button onClick={()=>{setGenerated(false);setExercises([]);}} style={{
+            background:'none',border:`1px solid ${C.bord}`,color:C.cream,
+            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+            letterSpacing:'0.1em',padding:'5px 12px',cursor:'pointer'}}>
+            ← EDIT
+          </button>
+        ) : null}
       />
 
-      {/* Main area */}
-      {land ? (
-        // Landscape: score left, input right
-        <div style={{flex:'1 1 0',minHeight:0,display:'flex',flexDirection:'row'}}>
-          {pageImages.length>0 ? (
-            <div style={{flex:'1 1 0',minWidth:0,borderRight:`1px solid ${C.bord}`}}>
-              {ScorePanel}
+      <div style={{flex:'1 1 0',minHeight:0,display:'flex',
+        flexDirection:(land&&hasScore)?'row':'column'}}>
+
+        {/* Score */}
+        {hasScore && (
+          <ZoomableScore src={pageImages[currentPage]} tapPos={tapPos}
+            currentPage={currentPage} totalPages={pageImages.length}
+            onPageChange={setCurrentPage}
+            flex={land?'0 0 45%':'0 0 36%'} />
+        )}
+
+        {/* Main panel */}
+        {generated && AllExView ? (
+          <div style={{flex:'1 1 0',minHeight:0,display:'flex',flexDirection:'column'}}>
+            {AllExView}
+            <div style={{padding:'8px 14px',flexShrink:0,borderTop:`1px solid ${C.bord}`,
+              display:'flex',gap:8,alignItems:'center'}}>
+              <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
+                placeholder="Document name"
+                style={{flex:1,background:C.panel,border:`1px solid ${C.bord}`,color:C.cream,
+                  padding:'6px 10px',fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',outline:'none'}} />
+              <Btn onClick={saveExercise} disabled={saving}>{saving?'SAVING...':'SAVE'}</Btn>
             </div>
-          ) : isLoadedExercise && (
-            <div style={{width:220,flexShrink:0,borderRight:`1px solid ${C.bord}`,padding:12,overflowY:'auto'}}>
-              {AttachPanel}
-            </div>
-          )}
-          <div style={{flex:'1 1 0',minWidth:0,display:'flex',flexDirection:'column',overflowY:'auto'}}>
-            {generated ? ExercisePanel : InputPanel}
-  
           </div>
-        </div>
-      ) : (
-        // Portrait: score top, input/exercises below
-        <div style={{flex:'1 1 0',minHeight:0,display:'flex',flexDirection:'column'}}>
-          {!generated && (pageImages.length>0 ? ScorePanel : (isLoadedExercise && AttachPanel))}
-          {generated ? (
-            <>
-              {ExercisePanel}
-              <div style={{padding:'8px 14px',flexShrink:0,borderTop:`1px solid ${C.bord}`}}>
-                <Btn onClick={()=>setGenerated(false)} full>&#8592; EDIT PASSAGE</Btn>
-              </div>
-            </>
-          ) : InputPanel}
-        </div>
-      )}
+        ) : ControlsPanel}
+
+      </div>
     </div>
   );
 }
+
 
 /* ═══════════════════════════════════════════════════════════════════════
    MUR — ALL EXERCISES VIEW (large screen)
 ═══════════════════════════════════════════════════════════════════════ */
 function AllExercisesView({ exercises, selNotes, clef, murKey, playingIdx, onPlay, land }) {
   const containerRef = useRef();
-
   useEffect(()=>{
-    const ABCJS = window.ABCJS;
+    const ABCJS=window.ABCJS;
     if(!ABCJS||!exercises.length||!containerRef.current) return;
-    const container = containerRef.current;
+    const container=containerRef.current;
     exercises.forEach((ex,i)=>{
-      const div = container.querySelector('#mur-ex-'+i);
+      const div=container.querySelector('#mur-ex-'+i);
       if(!div) return;
-      const abc = buildAbcString(ex.pat, selNotes, clef, murKey);
+      const abc=buildAbcString(ex.pat,selNotes,clef,murKey);
       try {
-        ABCJS.renderAbc(div, abc, {
-          scale:1.1,
-          staffwidth: Math.min((container.offsetWidth||700) - 60, 820),
+        ABCJS.renderAbc(div,abc,{
+          scale:1.1,staffwidth:Math.min((container.offsetWidth||700)-60,820),
           paddingright:20,paddingleft:10,paddingbottom:8,paddingtop:8,
           add_classes:true,
           wrap:{minSpacing:1.2,maxSpacing:2.8,preferredMeasuresPerLine:land?4:3},
@@ -2000,12 +2020,11 @@ function AllExercisesView({ exercises, selNotes, clef, murKey, playingIdx, onPla
                 border:`1px solid ${playingIdx===i?'#8b3a1a':'#c8b89a'}`,
                 color:playingIdx===i?'white':'#5a4e42',
                 width:26,height:26,borderRadius:'50%',cursor:'pointer',
-                fontSize:'0.65rem',flexShrink:0,
-                display:'flex',alignItems:'center',justifyContent:'center'}}>
+                fontSize:'0.65rem',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
               {playingIdx===i?'⏸':'▶'}
             </button>
             <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.65rem',color:'#9a8e82'}}>
-              {ex.pat.timeSig} &nbsp;&middot;&nbsp; {ex.pat.section.replace(' Rhythm Patterns','')}
+              {ex.pat.timeSig} &nbsp;·&nbsp; {ex.pat.section.replace(' Rhythm Patterns','')}
             </span>
           </div>
           <div id={'mur-ex-'+i} />
