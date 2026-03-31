@@ -1104,6 +1104,20 @@ function ZoomableScore({ src, tapPos, currentPage, totalPages, onPageChange, fle
 }
 
 /* ── Enharmonic respell helpers ─────────────────────────────────────── */
+function dn(n){return n.replace('##','𝄪').replace('bb','𝄫').replace('#','♯').replace('n','♮').replace(/([A-G])b/g,'$1♭');}
+
+// Convert concert pitch → written pitch for transposing instruments
+// semitones = -instrTranspose (e.g. +2 for Bb clarinet where instrTranspose=-2)
+function transposePitch(noteName, semitones, preferFlats) {
+  if (!semitones) return noteName;
+  const SHARP_PC = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const FLAT_PC  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+  const midi = murMidi(noteName) + semitones;
+  const pc = ((midi % 12) + 12) % 12;
+  const oct = Math.floor(midi / 12) - 1;
+  return (preferFlats ? FLAT_PC : SHARP_PC)[pc] + oct;
+}
+
 const ENARMAP = {
   'C':['C','B#','Dbb'],'B#':['B#','C'],'Dbb':['Dbb','C'],
   'C#':['C#','Db'],'Db':['Db','C#'],
@@ -1226,6 +1240,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
   const [clef,setClef]               = useState(savedExercise?.clef||'treble');
   const [key,setKey]                 = useState(savedExercise?.key||'C');
   const [instrTranspose,setInstrTranspose] = useState(0);
+  const [instrName,setInstrName]           = useState('');
   const [accMode,setAccMode]         = useState('sharp');
   const [inputTab,setInputTab]       = useState('keys');
   const [exercises,setExercises]     = useState([]);
@@ -1322,6 +1337,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
   },[accMode,insertAt]);
 
   useEffect(()=>{
+    let alive = true;
     const svg=pianoRef.current;
     if(!svg) return;
     const pn=PN.current;
@@ -1359,6 +1375,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
     });
 
     const handlePress = e => {
+      if (!alive) return;
       e.preventDefault();
       const pt=e.changedTouches?{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY}:{x:e.clientX,y:e.clientY};
       let k=document.elementFromPoint(pt.x,pt.y);
@@ -1378,6 +1395,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
     svg.addEventListener('touchstart',e=>{_tx=e.touches[0].clientX;_tswiped=false;_ttimer=setTimeout(()=>{if(!_tswiped)handlePress(e);_ttimer=null;},150);e.preventDefault();},{passive:false});
     svg.addEventListener('touchmove',e=>{if(Math.abs(e.touches[0].clientX-_tx)>8){_tswiped=true;if(_ttimer){clearTimeout(_ttimer);_ttimer=null;}}},{passive:true});
     svg.addEventListener('touchend',e=>{if(_ttimer){clearTimeout(_ttimer);_ttimer=null;if(!_tswiped)handlePress(e);}},{passive:true});
+    return () => { alive = false; };
   },[activeGroup,addNote,pianoMounted,accMode]);
 
   // ── Live staff preview — renders current notes as simple scale ─────
@@ -1602,7 +1620,9 @@ K:${abcKey}${abcClef}
               setMicStatus(note+' '+stableCount+'/2');
               if(stableCount>=2){
                 const written=accMode==='flat'&&({'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'}[note.slice(0,-1)])?({'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb'}[note.slice(0,-1)]+note.slice(-1)):note;
-                addNote(written);setMicStatus(written);
+                // Convert concert pitch → written pitch for transposing instruments
+                const writtenTransposed = transposePitch(written, -instrTranspose, accMode==='flat');
+                addNote(writtenTransposed);setMicStatus(writtenTransposed);
                 lockout=now+600;noteActive=false;stableCount=0;lastFreq=0;
               }
             } else {stableCount=1;lastFreq=freq;}
@@ -1828,21 +1848,34 @@ K:${abcKey}${abcClef}
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.58rem',
               letterSpacing:'0.22em',color:C.muted}}>INSTRUMENT</div>
             <div style={{position:'relative'}}>
-              <select value={instrTranspose}
-                onChange={e=>{setInstrTranspose(parseInt(e.target.value));setInstrSelected(true);}}
+              <select value={instrName}
+                onChange={e=>{
+                  const opt=e.target.options[e.target.selectedIndex];
+                  setInstrName(e.target.value);
+                  setInstrTranspose(parseInt(opt.dataset.t||'0'));
+                  setInstrSelected(true);
+                }}
                 style={{width:'100%',appearance:'none',WebkitAppearance:'none',
                   background:'#1a1410',border:`1px solid ${C.bord}`,color:C.cream,
                   padding:'7px 26px 7px 10px',fontFamily:"'Cormorant Garamond',serif",
                   fontSize:'0.9rem',cursor:'pointer'}}>
-                <option value="0" disabled={instrSelected}>Select instrument...</option>
-                <option value="0">Flute</option><option value="0">Oboe</option>
-                <option value="-2">B♭ Clarinet</option><option value="-3">A Clarinet</option>
-                <option value="0">Bassoon</option><option value="3">E♭ Alto Sax</option>
-                <option value="-2">Tenor Sax</option><option value="-7">E♭ Bari Sax</option>
-                <option value="-5">Horn in F</option><option value="-2">B♭ Trumpet</option>
-                <option value="0">Trombone</option><option value="0">Violin</option>
-                <option value="0">Viola</option><option value="0">Cello</option>
-                <option value="0">Piano</option><option value="0">Other (Concert Pitch)</option>
+                <option value="">Select instrument...</option>
+                <option value="Flute"       data-t="0">Flute</option>
+                <option value="Oboe"        data-t="0">Oboe</option>
+                <option value="BbClarinet"  data-t="-2">B♭ Clarinet</option>
+                <option value="AClarinet"   data-t="-3">A Clarinet</option>
+                <option value="Bassoon"     data-t="0">Bassoon</option>
+                <option value="EbAltoSax"   data-t="3">E♭ Alto Sax</option>
+                <option value="TenorSax"    data-t="-2">Tenor Sax</option>
+                <option value="EbBariSax"   data-t="-7">E♭ Bari Sax</option>
+                <option value="HornF"       data-t="-5">Horn in F</option>
+                <option value="BbTrumpet"   data-t="-2">B♭ Trumpet</option>
+                <option value="Trombone"    data-t="0">Trombone</option>
+                <option value="Violin"      data-t="0">Violin</option>
+                <option value="Viola"       data-t="0">Viola</option>
+                <option value="Cello"       data-t="0">Cello</option>
+                <option value="Piano"       data-t="0">Piano</option>
+                <option value="Other"       data-t="0">Other (Concert Pitch)</option>
               </select>
               <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',
                 color:C.muted,pointerEvents:'none',fontSize:'0.65rem'}}>▾</span>
