@@ -1052,25 +1052,15 @@ function ZoomableScore({ src, tapPos, currentPage, totalPages, onPageChange, fle
   const containerRef = useRef();
   const imgRef       = useRef();
 
-  // Auto-scroll to tap Y position once image loads
-  useEffect(() => {
+  const scrollToTap = () => {
     const img = imgRef.current;
     const container = containerRef.current;
     if(!img || !container || !tapPos || tapPos.page !== currentPage) return;
-    const doScroll = () => {
-      const imgH = img.offsetHeight || img.clientHeight;
-      if(!imgH) return;
-      const targetY = tapPos.y * imgH;
-      // Scroll so the tap point sits 30% from the top of the container
-      const scrollTo = Math.max(0, targetY - container.clientHeight * 0.3);
-      container.scrollTop = scrollTo;
-    };
-    if(img.complete && img.naturalHeight > 0) {
-      doScroll();
-    } else {
-      img.onload = doScroll;
-    }
-  }, [src, tapPos, currentPage]);
+    const imgH = img.offsetHeight;
+    if(!imgH) return;
+    const targetY = tapPos.y * imgH;
+    container.scrollTop = Math.max(0, targetY - container.clientHeight * 0.3);
+  };
 
   // Reset scroll when page changes
   useEffect(() => {
@@ -1084,6 +1074,7 @@ function ZoomableScore({ src, tapPos, currentPage, totalPages, onPageChange, fle
         flex, minHeight:0, WebkitOverflowScrolling:'touch' }}>
 
       <img ref={imgRef} src={src}
+        onLoad={scrollToTap}
         style={{ width:'100%', height:'auto', display:'block',
           userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none' }}
         onContextMenu={e=>e.preventDefault()}
@@ -1165,7 +1156,8 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
   // ── Refs ───────────────────────────────────────────────────────────
   const acRef      = useRef(null);
   const pianoRef   = useRef(null);
-  const exDivRef   = useRef(null);
+  const exDivRef       = useRef(null);
+  const liveStaffRef   = useRef(null);
   const micRef     = useRef({active:false,stream:null,ctx:null,analyser:null,timer:null});
 
   // ── Audio ──────────────────────────────────────────────────────────
@@ -1264,6 +1256,42 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
     svg.addEventListener('touchmove',e=>{if(Math.abs(e.touches[0].clientX-_tx)>8){_tswiped=true;if(_ttimer){clearTimeout(_ttimer);_ttimer=null;}}},{passive:true});
     svg.addEventListener('touchend',e=>{if(_ttimer){clearTimeout(_ttimer);_ttimer=null;if(!_tswiped)handlePress(e);}},{passive:true});
   },[activeGroup,addNote]);
+
+  // ── Live staff preview — renders current notes as simple scale ─────
+  useEffect(()=>{
+    const ABCJS = window.ABCJS;
+    const div = liveStaffRef.current;
+    if(!ABCJS || !div) return;
+    if(!selNotes.length) { div.innerHTML=''; return; }
+    // Build a simple ABC string — one bar of whole notes in current key/clef
+    const keyMap={'C':'C','G':'G','D':'D','A':'A','E':'E','B':'B','Fs':'F#','F':'F','Bb':'Bb','Eb':'Eb','Ab':'Ab','Db':'Db','Gb':'Gb'};
+    const abcKey = keyMap[key]||'C';
+    const abcClef = clef==='bass'?' clef=bass':clef==='alto'?' clef=alto':clef==='tenor'?' clef=tenor':'';
+    // Render as quarter notes, 4 per bar
+    const noteAbc = selNotes.map(n=>{
+      const m=n.match(/^([A-G])(##|bb|#|b|n)?(\d)$/); if(!m) return 'C8';
+      const pc=m[1],acc=m[2]||'',oct=parseInt(m[3]);
+      const prefix=acc==='##'?'^^':acc==='bb'?'__':acc==='#'?'^':acc==='b'?'_':acc==='n'?'=':'';
+      const letter=oct<=4?pc:pc.toLowerCase();
+      const octMod=oct===3?',':(oct===2?',,':(oct===1?',,,':(oct===6?"'":(oct===7?"''":''))));
+      return prefix+letter+octMod+'8';
+    }).join(' ');
+    const abc=`X:1
+M:4/4
+L:1/32
+K:${abcKey}${abcClef}
+|${noteAbc}|`;
+    try {
+      ABCJS.renderAbc(div, abc, {
+        scale:0.9, staffwidth:Math.min((div.offsetWidth||300)-20,560),
+        paddingright:10,paddingleft:10,paddingbottom:5,paddingtop:5,
+        add_classes:true,
+      });
+      div.querySelectorAll('svg path,svg rect,svg ellipse,svg line,svg text').forEach(el=>{
+        el.style.fill='#1a1208'; el.style.stroke='#1a1208';
+      });
+    } catch(e){}
+  },[selNotes,key,clef]);
 
   // ── ABCJS exercise rendering ───────────────────────────────────────
   useEffect(()=>{
@@ -1713,6 +1741,14 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
             Play each note clearly with a brief silence between
           </div>
         </div>
+      )}
+
+      {/* Live staff preview */}
+      {selNotes.length>0 && (
+        <div ref={liveStaffRef}
+          style={{background:'white',flexShrink:0,
+            padding:'4px 14px',borderTop:`1px solid ${C.bord}`,
+            minHeight:60,overflowX:'auto'}} />
       )}
 
       {/* Chips */}
