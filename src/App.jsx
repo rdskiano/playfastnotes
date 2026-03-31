@@ -1046,143 +1046,66 @@ function StrategyScreen({ piece, onICU, onMUR, onBack }) {
    MUR SCREEN
 ═══════════════════════════════════════════════════════════════════════ */
 /* ═══════════════════════════════════════════════════════════════════════
-   ZOOMABLE SCORE PANEL — pinch to zoom, auto-scroll to tap location
+   SCROLLABLE SCORE PANEL — auto-scrolls to tap Y position on arrival
 ═══════════════════════════════════════════════════════════════════════ */
 function ZoomableScore({ src, tapPos, currentPage, totalPages, onPageChange, flex }) {
   const containerRef = useRef();
   const imgRef       = useRef();
-  const [scale, setScale]   = useState(1);
-  const [offset, setOffset] = useState({ x:0, y:0 });
-  const lastPinchRef  = useRef(null);
-  const lastPanRef    = useRef(null);
-  const MIN_SCALE = 1, MAX_SCALE = 4;
 
-  // Auto-scroll to tap location on mount
+  // Auto-scroll to tap Y position once image loads
   useEffect(() => {
-    if(!tapPos || tapPos.page !== currentPage) return;
-    const container = containerRef.current;
-    if(!container) return;
-    // After a short delay to let image render
-    const t = setTimeout(() => {
-      const cw = container.clientWidth, ch = container.clientHeight;
-      const imgW = cw * 2; // scale=2 default for zoom-in
-      const imgH = imgRef.current ? (imgRef.current.naturalHeight / imgRef.current.naturalWidth) * imgW : ch * 2;
-      const newScale = 2;
-      // Center the tap point in the left half of the view
-      const targetX = tapPos.x * imgW;
-      const targetY = tapPos.y * imgH;
-      const ox = Math.min(0, Math.max(cw - imgW * newScale, cw * 0.5 - targetX * newScale));
-      const oy = Math.min(0, Math.max(ch - imgH * newScale, ch * 0.5 - targetY * newScale));
-      setScale(newScale);
-      setOffset({ x: ox, y: oy });
-    }, 150);
-    return () => clearTimeout(t);
-  }, [src, tapPos]);
-
-  const clampOffset = (ox, oy, sc) => {
-    const container = containerRef.current;
-    if(!container) return { x:ox, y:oy };
-    const cw = container.clientWidth, ch = container.clientHeight;
     const img = imgRef.current;
-    const iw = img ? img.clientWidth * sc : cw * sc;
-    const ih = img ? img.clientHeight * sc : ch * sc;
-    return {
-      x: Math.min(0, Math.max(cw - iw, ox)),
-      y: Math.min(0, Math.max(ch - ih, oy)),
+    const container = containerRef.current;
+    if(!img || !container || !tapPos || tapPos.page !== currentPage) return;
+    const doScroll = () => {
+      const imgH = img.offsetHeight || img.clientHeight;
+      if(!imgH) return;
+      const targetY = tapPos.y * imgH;
+      // Scroll so the tap point sits 30% from the top of the container
+      const scrollTo = Math.max(0, targetY - container.clientHeight * 0.3);
+      container.scrollTop = scrollTo;
     };
-  };
-
-  const handleTouchStart = e => {
-    if(e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      lastPinchRef.current = { dist: Math.hypot(dx, dy), scale, offset };
-      lastPanRef.current = null;
-    } else if(e.touches.length === 1) {
-      lastPanRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, offset };
-      lastPinchRef.current = null;
+    if(img.complete && img.naturalHeight > 0) {
+      doScroll();
+    } else {
+      img.onload = doScroll;
     }
-  };
+  }, [src, tapPos, currentPage]);
 
-  const handleTouchMove = e => {
-    e.preventDefault();
-    if(e.touches.length === 2 && lastPinchRef.current) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.hypot(dx, dy);
-      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE,
-        lastPinchRef.current.scale * (dist / lastPinchRef.current.dist)));
-      const clamped = clampOffset(lastPinchRef.current.offset.x, lastPinchRef.current.offset.y, newScale);
-      setScale(newScale);
-      setOffset(clamped);
-    } else if(e.touches.length === 1 && lastPanRef.current) {
-      const dx = e.touches[0].clientX - lastPanRef.current.x;
-      const dy = e.touches[0].clientY - lastPanRef.current.y;
-      const clamped = clampOffset(
-        lastPanRef.current.offset.x + dx,
-        lastPanRef.current.offset.y + dy,
-        scale
-      );
-      setOffset(clamped);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    lastPinchRef.current = null;
-    lastPanRef.current = null;
-  };
-
-  const resetZoom = () => { setScale(1); setOffset({x:0,y:0}); };
+  // Reset scroll when page changes
+  useEffect(() => {
+    if(containerRef.current) containerRef.current.scrollTop = 0;
+  }, [currentPage]);
 
   return (
     <div ref={containerRef}
-      style={{ position:'relative', background:'#0a0805', overflow:'hidden',
-        flex, minHeight:0, touchAction:'none' }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}>
+      style={{ position:'relative', background:'#0a0805',
+        overflowY:'auto', overflowX:'hidden',
+        flex, minHeight:0, WebkitOverflowScrolling:'touch' }}>
 
       <img ref={imgRef} src={src}
-        style={{
-          position:'absolute', top:0, left:0,
-          width:'100%', height:'auto',
-          transformOrigin:'0 0',
-          transform:`translate(${offset.x}px,${offset.y}px) scale(${scale})`,
-          userSelect:'none', WebkitUserSelect:'none',
-          WebkitTouchCallout:'none', display:'block',
-        }}
+        style={{ width:'100%', height:'auto', display:'block',
+          userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none' }}
         onContextMenu={e=>e.preventDefault()}
         draggable={false} />
 
-      {/* Reset zoom button */}
-      {scale > 1.05 && (
-        <button onClick={resetZoom}
-          style={{ position:'absolute', bottom:8, right:8, zIndex:10,
-            background:'rgba(26,22,18,0.85)', border:`1px solid ${C.bord2}`,
-            color:C.cream, fontFamily:"'Bebas Neue',sans-serif",
-            fontSize:'0.7rem', letterSpacing:'0.1em',
-            padding:'4px 10px', cursor:'pointer' }}>
-          RESET ZOOM
-        </button>
-      )}
-
       {/* Page nav */}
       {totalPages > 1 && (
-        <div style={{ position:'absolute', bottom:8, left:'50%',
-          transform:'translateX(-50%)', display:'flex',
-          alignItems:'center', gap:10, zIndex:10,
-          background:'rgba(26,22,18,0.85)', padding:'4px 12px' }}>
-          <button onClick={()=>{ onPageChange(p=>Math.max(0,p-1)); resetZoom(); }}
+        <div style={{ position:'sticky', bottom:0, display:'flex',
+          alignItems:'center', justifyContent:'center', gap:12,
+          padding:'6px 12px', background:'rgba(26,22,18,0.9)',
+          borderTop:`1px solid ${C.bord}` }}>
+          <button onClick={()=>onPageChange(p=>Math.max(0,p-1))}
             disabled={currentPage===0}
             style={{background:'none',border:'none',color:C.cream,
-              fontSize:'1.1rem',cursor:'pointer',opacity:currentPage===0?0.3:1}}>←</button>
-          <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.cream}}>
-            p.{currentPage+1}/{totalPages}
+              fontSize:'1.2rem',cursor:'pointer',opacity:currentPage===0?0.3:1}}>←</button>
+          <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.cream}}>
+            p.{currentPage+1} / {totalPages}
           </span>
-          <button onClick={()=>{ onPageChange(p=>Math.min(totalPages-1,p+1)); resetZoom(); }}
+          <button onClick={()=>onPageChange(p=>Math.min(totalPages-1,p+1))}
             disabled={currentPage===totalPages-1}
             style={{background:'none',border:'none',color:C.cream,
-              fontSize:'1.1rem',cursor:'pointer',opacity:currentPage===totalPages-1?0.3:1}}>→</button>
+              fontSize:'1.2rem',cursor:'pointer',opacity:currentPage===totalPages-1?0.3:1}}>→</button>
         </div>
       )}
     </div>
