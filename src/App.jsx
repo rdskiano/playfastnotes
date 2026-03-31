@@ -520,6 +520,8 @@ export default function App() {
   const [goalTempo,setGoalTempo]   = useState(120);
   const [increment,setIncrement]   = useState(5);
   const [savedExercise,setSavedExercise] = useState(null);
+  const [sessionMode,setSessionMode]   = useState('massed'); // 'massed' | 'interleaved'
+  const [tapPos,setTapPos]             = useState(null);     // {page,x,y} where user tapped
   const N = markers.length;
 
   const saveProf = p => { setProfile(p); setProfileState(p); };
@@ -529,32 +531,64 @@ export default function App() {
   return (
     <RootContainer>
       <style>{FONTS}</style>
-      {screen==='signin'   && <SignInScreen onSignIn={p=>{saveProf(p);setScreen('library');}} />}
-      {screen==='library'  && (
+
+      {screen==='signin' && (
+        <SignInScreen onSignIn={p=>{saveProf(p);setScreen('library');}} />
+      )}
+
+      {screen==='library' && (
         <LibraryScreen
           profile={profile}
-          onSelectPiece={(p,imgs)=>{ setPiece(p);setPageImages(imgs);setMarkers([]);setCurrentPage(0);setScreen('strategy'); }}
-          onLoadExercise={ex=>{ setSavedExercise(ex); setPiece(null); setPageImages([]); setScreen('mur'); }}
-          onSignOut={()=>{ setProfile({});setProfileState({});setScreen('signin'); }}
+          onSelectRepertoire={(p,imgs)=>{
+            setPiece(p);setPageImages(imgs);
+            setMarkers([]);setCurrentPage(0);
+            setScreen('score');
+          }}
+          onLoadExercise={ex=>{
+            setSavedExercise(ex);setPiece(null);setPageImages([]);
+            setScreen('mur');
+          }}
+          onSignOut={()=>{setProfile({});setProfileState({});setScreen('signin');}}
         />
       )}
-      {screen==='strategy' && (
-        <StrategyScreen
-          piece={piece}
-          onICU={()=>setScreen('mark')}
-          onMUR={()=>{ setSavedExercise(null);setScreen('mur'); }}
+
+      {/* Score view — home base for a piece */}
+      {screen==='score' && (
+        <ScoreViewScreen
+          piece={piece} pageImages={pageImages}
+          currentPage={currentPage} setCurrentPage={setCurrentPage}
+          sessionMode={sessionMode} setSessionMode={setSessionMode}
           onBack={()=>setScreen('library')}
+          onTapPassage={(pos)=>{
+            setTapPos(pos);
+            setScreen('strategy-menu');
+          }}
         />
       )}
-      {screen==='mark'     && (
+
+      {/* Strategy picker — appears after tapping a passage */}
+      {screen==='strategy-menu' && (
+        <StrategyMenuScreen
+          piece={piece}
+          tapPos={tapPos}
+          sessionMode={sessionMode}
+          onICU={()=>{ setMarkers([]); setScreen('mark'); }}
+          onMUR={()=>{ setSavedExercise(null); setScreen('mur'); }}
+          onBack={()=>setScreen('score')}
+        />
+      )}
+
+      {screen==='mark' && (
         <MarkerScreen
           piece={piece} pageImages={pageImages}
           currentPage={currentPage} setCurrentPage={setCurrentPage}
           markers={markers} setMarkers={setMarkers}
-          onBack={()=>setScreen('strategy')} onNext={()=>setScreen('params')}
+          onBack={()=>setScreen('strategy-menu')}
+          onNext={()=>setScreen('params')}
         />
       )}
-      {screen==='params'   && (
+
+      {screen==='params' && (
         <ParamsScreen
           N={N}
           startTempo={startTempo} setStartTempo={setStartTempo}
@@ -563,20 +597,23 @@ export default function App() {
           onBack={()=>setScreen('mark')} onStart={()=>setScreen('session')}
         />
       )}
-      {screen==='session'  && (
+
+      {screen==='session' && (
         <SessionScreen
           pageImages={pageImages} markers={markers} N={N}
           startTempo={startTempo} goalTempo={goalTempo} increment={increment}
           onBack={()=>setScreen('params')}
         />
       )}
-      {screen==='mur'      && (
+
+      {screen==='mur' && (
         <MURScreen
           piece={piece} pageImages={pageImages}
           profile={profile} savedExercise={savedExercise}
-          onBack={()=>setScreen(piece?'strategy':'library')}
+          onBack={()=>setScreen(piece?'score':'library')}
         />
       )}
+
     </RootContainer>
   );
 }
@@ -644,7 +681,7 @@ function SignInScreen({ onSignIn }) {
 /* ═══════════════════════════════════════════════════════════════════════
    LIBRARY
 ═══════════════════════════════════════════════════════════════════════ */
-function LibraryScreen({ profile, onSelectPiece, onLoadExercise, onSignOut }) {
+function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut }) {
   const [tab,setTab]         = useState('pieces');
   const [pieces,setPieces]   = useState([]);
   const [exercises,setExercises] = useState([]);
@@ -694,7 +731,7 @@ function LibraryScreen({ profile, onSelectPiece, onLoadExercise, onSignOut }) {
 
   const openPiece = async piece => {
     if(piece.file_type==='image'){
-      onSelectPiece(piece,[piece.file_url]);
+      onSelectRepertoire(piece,[piece.file_url]);
     } else {
       try {
         const pdfjsLib = window['pdfjs-dist/build/pdf'];
@@ -710,8 +747,8 @@ function LibraryScreen({ profile, onSelectPiece, onLoadExercise, onSignOut }) {
           await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
           imgs.push(canvas.toDataURL('image/png'));
         }
-        onSelectPiece(piece,imgs);
-      } catch { onSelectPiece(piece,[piece.file_url]); }
+        onSelectRepertoire(piece,imgs);
+      } catch { onSelectRepertoire(piece,[piece.file_url]); }
     }
   };
 
@@ -726,14 +763,14 @@ function LibraryScreen({ profile, onSelectPiece, onLoadExercise, onSignOut }) {
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <TopBar
         left={<span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.cream}}>{profile.name||profile.email}</span>}
-        center="PLAY FAST NOTES"
+        center="MY LIBRARY"
         right={<BackBtn onClick={onSignOut} label="SIGN OUT" />}
       />
 
       {/* Tabs */}
       <div style={{display:'flex',borderBottom:`1px solid ${C.bord}`,flexShrink:0,background:C.ink}}>
-        <button style={tabStyle(tab==='pieces')} onClick={()=>setTab('pieces')}>My Pieces</button>
-        <button style={tabStyle(tab==='exercises')} onClick={()=>setTab('exercises')}>My Exercises</button>
+        <button style={tabStyle(tab==='pieces')} onClick={()=>setTab('pieces')}>Repertoire</button>
+        <button style={tabStyle(tab==='exercises')} onClick={()=>setTab('exercises')}>Exercises</button>
       </div>
 
       <div style={{flex:'1 1 0',overflowY:'auto',padding:16}}>
@@ -743,7 +780,7 @@ function LibraryScreen({ profile, onSelectPiece, onLoadExercise, onSignOut }) {
               width:'100%',border:`2px dashed ${C.bord2}`,background:'none',
               color:C.cream,padding:18,fontFamily:"'Bebas Neue',sans-serif",
               fontSize:'1rem',letterSpacing:'0.12em',cursor:'pointer',marginBottom:16
-            }}>+ ADD A PIECE</button>
+            }}>+ ADD REPERTOIRE</button>
 
             {showUpload && (
               <div style={{background:C.panel,border:`1px solid ${C.bord}`,padding:20,marginBottom:20,display:'flex',flexDirection:'column',gap:14}}>
@@ -809,7 +846,155 @@ function LibraryScreen({ profile, onSelectPiece, onLoadExercise, onSignOut }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   STRATEGY PICKER
+   SCORE VIEW — home base for a repertoire item
+═══════════════════════════════════════════════════════════════════════ */
+function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
+  sessionMode, setSessionMode, onBack, onTapPassage }) {
+
+  const land = useOrientation();
+  const totalPages = pageImages.length;
+  const showTwo = land && totalPages > 1;
+  const rightPage = currentPage + 1 < totalPages ? currentPage + 1 : null;
+
+  const handleTap = e => {
+    const img = e.currentTarget;
+    const rect = img.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top)  / rect.height;
+    const page = img.dataset.page ? parseInt(img.dataset.page) : currentPage;
+    onTapPassage({ page, x, y });
+  };
+
+  const modeBtn = (mode, label) => (
+    <button onClick={()=>setSessionMode(mode)} style={{
+      fontFamily:"'Bebas Neue',sans-serif", fontSize:'0.9rem',
+      letterSpacing:'0.1em', padding:'7px 18px',
+      background: sessionMode===mode ? C.accent : '#2a231d',
+      color: sessionMode===mode ? 'white' : C.muted,
+      border: `1px solid ${sessionMode===mode ? C.accent : C.bord}`,
+      cursor:'pointer',
+    }}>{label}</button>
+  );
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
+      <TopBar
+        left={<BackBtn onClick={onBack} />}
+        center={piece?.title||'SCORE'}
+        right={
+          <div style={{display:'flex',gap:4}}>
+            {modeBtn('massed','MASSED')}
+            {modeBtn('interleaved','INTERLEAVED')}
+          </div>
+        }
+      />
+
+      {/* Instruction */}
+      <div style={{padding:'6px 16px',flexShrink:0,borderBottom:`1px solid ${C.bord}`,
+        display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+          fontSize:16,color:C.cream}}>
+          Tap a passage to begin working
+        </div>
+        {!showTwo && totalPages>1 && (
+          <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
+            <Btn onClick={()=>setCurrentPage(p=>Math.max(0,p-1))}
+              disabled={currentPage===0} style={{padding:'4px 12px',fontSize:'0.8rem'}}>← PAGE</Btn>
+            <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.cream}}>
+              {currentPage+1}/{totalPages}
+            </span>
+            <Btn onClick={()=>setCurrentPage(p=>Math.min(totalPages-1,p+1))}
+              disabled={currentPage===totalPages-1} style={{padding:'4px 12px',fontSize:'0.8rem'}}>PAGE →</Btn>
+          </div>
+        )}
+      </div>
+
+      {/* Score */}
+      <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex'}}>
+        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
+          <img data-page={currentPage} src={pageImages[currentPage]}
+            onClick={handleTap}
+            style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
+              userSelect:'none',WebkitUserSelect:'none',cursor:'crosshair'}}
+            onContextMenu={e=>e.preventDefault()}
+            draggable={false} />
+        </div>
+        {showTwo && rightPage!==null && (
+          <div style={{position:'relative',flex:1,minWidth:0,
+            borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
+            <img data-page={rightPage} src={pageImages[rightPage]}
+              onClick={handleTap}
+              style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
+                userSelect:'none',WebkitUserSelect:'none',cursor:'crosshair'}}
+              onContextMenu={e=>e.preventDefault()}
+              draggable={false} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   STRATEGY MENU — appears after tapping a passage
+═══════════════════════════════════════════════════════════════════════ */
+function StrategyMenuScreen({ piece, tapPos, sessionMode, onICU, onMUR, onBack }) {
+  const cardStyle = (color) => ({
+    display:'flex', flexDirection:'column', gap:10,
+    padding:'28px 24px', border:`2px solid ${color}`,
+    cursor:'pointer', transition:'background 0.15s', background:'transparent',
+    textAlign:'left', width:'100%',
+  });
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
+      <TopBar left={<BackBtn onClick={onBack} />} center="CHOOSE STRATEGY" right={null} />
+
+      <div style={{flex:'1 1 0',display:'flex',flexDirection:'column',
+        justifyContent:'center',gap:16,padding:'24px 20px',
+        maxWidth:520,margin:'0 auto',width:'100%'}}>
+
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+          fontSize:'1rem',color:C.muted,marginBottom:4,textAlign:'center'}}>
+          {sessionMode==='interleaved'
+            ? 'Interleaved session — this passage will be one of several'
+            : 'Massed session — focused work on this passage'}
+        </div>
+
+        <button style={cardStyle(C.accent)} onClick={onICU}
+          onMouseEnter={e=>e.currentTarget.style.background=C.panel}
+          onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',
+            letterSpacing:'0.12em',color:C.accent}}>
+            INTERLEAVED CLICK-UP
+          </div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1rem',
+            color:C.cream,lineHeight:1.5}}>
+            Build speed gradually by adding one unit at a time, cycling through
+            tempo increments until you reach your goal.
+          </div>
+        </button>
+
+        <button style={cardStyle(C.gold)} onClick={onMUR}
+          onMouseEnter={e=>e.currentTarget.style.background=C.panel}
+          onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',
+            letterSpacing:'0.12em',color:C.gold}}>
+            RHYTHMIC VARIATION
+          </div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1rem',
+            color:C.cream,lineHeight:1.5}}>
+            Enter the pitches of your passage and practice them written out
+            in every rhythm pattern — a complete systematic workout.
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   STRATEGY PICKER (legacy — kept for reference, not used in new flow)
 ═══════════════════════════════════════════════════════════════════════ */
 function StrategyScreen({ piece, onICU, onMUR, onBack }) {
   const cardStyle = (color) => ({
@@ -1895,15 +2080,13 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
     const ctx=canvas.getContext('2d');ctx.clearRect(0,0,w,h);
     const activeStart=step.units[0];
     const activeEnd=Math.min(step.units[step.units.length-1]+1,markers.length-1);
-    const GREEN='#3db06a',RED='#e05555';
+    const GREEN='#3db06a';
     markers.filter(m=>m.page===pageIdx).forEach(m=>{
       const gi=markers.indexOf(m);
       const isStart=gi===activeStart,isEnd=gi===activeEnd;
-      const isActive=gi>=activeStart&&gi<=activeEnd;
-      const color=isStart?GREEN:isEnd?RED:'#888';
-      ctx.globalAlpha=isActive?1:0.35;
-      drawArrow(ctx,m.x*w,m.y*h,color);
-      ctx.globalAlpha=1;
+      // Only show active start and end — hide all others
+      if(!isStart&&!isEnd) return;
+      drawArrow(ctx,m.x*w,m.y*h,GREEN);
     });
   },[step.units,markers]);
 
@@ -1966,7 +2149,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
         <span>Play from</span>
         <span style={{display:'inline-block',width:0,height:0,borderLeft:`${compact?5:6}px solid transparent`,borderRight:`${compact?5:6}px solid transparent`,borderBottom:`${compact?7:8}px solid #3db06a`,transform:'rotate(180deg)',marginTop:1}} />
         <span style={{color:C.muted}}>to</span>
-        <span style={{display:'inline-block',width:0,height:0,borderLeft:`${compact?5:6}px solid transparent`,borderRight:`${compact?5:6}px solid transparent`,borderBottom:`${compact?7:8}px solid #e05555`,transform:'rotate(180deg)',marginTop:1}} />
+        <span style={{display:'inline-block',width:0,height:0,borderLeft:`${compact?5:6}px solid transparent`,borderRight:`${compact?5:6}px solid transparent`,borderBottom:`${compact?7:8}px solid #3db06a`,transform:'rotate(180deg)',marginTop:1}} />
         <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:compact?11:13,color:C.muted,letterSpacing:'0.06em',marginLeft:4}}>{unitLabel}</span>
       </div>
     </div>
