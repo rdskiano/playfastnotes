@@ -602,7 +602,9 @@ export default function App() {
         <SessionScreen
           pageImages={pageImages} markers={markers} N={N}
           startTempo={startTempo} goalTempo={goalTempo} increment={increment}
+          profile={profile} piece={piece} tapPos={tapPos}
           onBack={()=>setScreen('params')}
+          onDone={()=>setScreen('score')}
         />
       )}
 
@@ -610,6 +612,7 @@ export default function App() {
         <MURScreen
           piece={piece} pageImages={pageImages}
           profile={profile} savedExercise={savedExercise}
+          tapPos={tapPos}
           onBack={()=>setScreen(piece?'score':'library')}
         />
       )}
@@ -1042,7 +1045,151 @@ function StrategyScreen({ piece, onICU, onMUR, onBack }) {
 /* ═══════════════════════════════════════════════════════════════════════
    MUR SCREEN
 ═══════════════════════════════════════════════════════════════════════ */
-function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
+/* ═══════════════════════════════════════════════════════════════════════
+   ZOOMABLE SCORE PANEL — pinch to zoom, auto-scroll to tap location
+═══════════════════════════════════════════════════════════════════════ */
+function ZoomableScore({ src, tapPos, currentPage, totalPages, onPageChange, flex }) {
+  const containerRef = useRef();
+  const imgRef       = useRef();
+  const [scale, setScale]   = useState(1);
+  const [offset, setOffset] = useState({ x:0, y:0 });
+  const lastPinchRef  = useRef(null);
+  const lastPanRef    = useRef(null);
+  const MIN_SCALE = 1, MAX_SCALE = 4;
+
+  // Auto-scroll to tap location on mount
+  useEffect(() => {
+    if(!tapPos || tapPos.page !== currentPage) return;
+    const container = containerRef.current;
+    if(!container) return;
+    // After a short delay to let image render
+    const t = setTimeout(() => {
+      const cw = container.clientWidth, ch = container.clientHeight;
+      const imgW = cw * 2; // scale=2 default for zoom-in
+      const imgH = imgRef.current ? (imgRef.current.naturalHeight / imgRef.current.naturalWidth) * imgW : ch * 2;
+      const newScale = 2;
+      // Center the tap point in the left half of the view
+      const targetX = tapPos.x * imgW;
+      const targetY = tapPos.y * imgH;
+      const ox = Math.min(0, Math.max(cw - imgW * newScale, cw * 0.5 - targetX * newScale));
+      const oy = Math.min(0, Math.max(ch - imgH * newScale, ch * 0.5 - targetY * newScale));
+      setScale(newScale);
+      setOffset({ x: ox, y: oy });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [src, tapPos]);
+
+  const clampOffset = (ox, oy, sc) => {
+    const container = containerRef.current;
+    if(!container) return { x:ox, y:oy };
+    const cw = container.clientWidth, ch = container.clientHeight;
+    const img = imgRef.current;
+    const iw = img ? img.clientWidth * sc : cw * sc;
+    const ih = img ? img.clientHeight * sc : ch * sc;
+    return {
+      x: Math.min(0, Math.max(cw - iw, ox)),
+      y: Math.min(0, Math.max(ch - ih, oy)),
+    };
+  };
+
+  const handleTouchStart = e => {
+    if(e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastPinchRef.current = { dist: Math.hypot(dx, dy), scale, offset };
+      lastPanRef.current = null;
+    } else if(e.touches.length === 1) {
+      lastPanRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, offset };
+      lastPinchRef.current = null;
+    }
+  };
+
+  const handleTouchMove = e => {
+    e.preventDefault();
+    if(e.touches.length === 2 && lastPinchRef.current) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE,
+        lastPinchRef.current.scale * (dist / lastPinchRef.current.dist)));
+      const clamped = clampOffset(lastPinchRef.current.offset.x, lastPinchRef.current.offset.y, newScale);
+      setScale(newScale);
+      setOffset(clamped);
+    } else if(e.touches.length === 1 && lastPanRef.current) {
+      const dx = e.touches[0].clientX - lastPanRef.current.x;
+      const dy = e.touches[0].clientY - lastPanRef.current.y;
+      const clamped = clampOffset(
+        lastPanRef.current.offset.x + dx,
+        lastPanRef.current.offset.y + dy,
+        scale
+      );
+      setOffset(clamped);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    lastPinchRef.current = null;
+    lastPanRef.current = null;
+  };
+
+  const resetZoom = () => { setScale(1); setOffset({x:0,y:0}); };
+
+  return (
+    <div ref={containerRef}
+      style={{ position:'relative', background:'#0a0805', overflow:'hidden',
+        flex, minHeight:0, touchAction:'none' }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}>
+
+      <img ref={imgRef} src={src}
+        style={{
+          position:'absolute', top:0, left:0,
+          width:'100%', height:'auto',
+          transformOrigin:'0 0',
+          transform:`translate(${offset.x}px,${offset.y}px) scale(${scale})`,
+          userSelect:'none', WebkitUserSelect:'none',
+          WebkitTouchCallout:'none', display:'block',
+        }}
+        onContextMenu={e=>e.preventDefault()}
+        draggable={false} />
+
+      {/* Reset zoom button */}
+      {scale > 1.05 && (
+        <button onClick={resetZoom}
+          style={{ position:'absolute', bottom:8, right:8, zIndex:10,
+            background:'rgba(26,22,18,0.85)', border:`1px solid ${C.bord2}`,
+            color:C.cream, fontFamily:"'Bebas Neue',sans-serif",
+            fontSize:'0.7rem', letterSpacing:'0.1em',
+            padding:'4px 10px', cursor:'pointer' }}>
+          RESET ZOOM
+        </button>
+      )}
+
+      {/* Page nav */}
+      {totalPages > 1 && (
+        <div style={{ position:'absolute', bottom:8, left:'50%',
+          transform:'translateX(-50%)', display:'flex',
+          alignItems:'center', gap:10, zIndex:10,
+          background:'rgba(26,22,18,0.85)', padding:'4px 12px' }}>
+          <button onClick={()=>{ onPageChange(p=>Math.max(0,p-1)); resetZoom(); }}
+            disabled={currentPage===0}
+            style={{background:'none',border:'none',color:C.cream,
+              fontSize:'1.1rem',cursor:'pointer',opacity:currentPage===0?0.3:1}}>←</button>
+          <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.cream}}>
+            p.{currentPage+1}/{totalPages}
+          </span>
+          <button onClick={()=>{ onPageChange(p=>Math.min(totalPages-1,p+1)); resetZoom(); }}
+            disabled={currentPage===totalPages-1}
+            style={{background:'none',border:'none',color:C.cream,
+              fontSize:'1.1rem',cursor:'pointer',opacity:currentPage===totalPages-1?0.3:1}}>→</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }) {
   const land = useOrientation();
   const isLarge = useIsLarge();
 
@@ -1450,23 +1597,14 @@ function MURScreen({ piece, pageImages, profile, savedExercise, onBack }) {
   );
 
   const ScorePanel = pageImages.length>0 ? (
-    <div style={{position:'relative',background:'#0a0805',overflow:'hidden',
-      flex:land?'1 1 0':'0 0 35%',minHeight:0}}>
-      <img src={pageImages[currentPage]}
-        style={{width:'100%',height:'100%',objectFit:'contain',display:'block',userSelect:'none'}}
-        draggable={false} />
-      {pageImages.length>1 && (
-        <div style={{position:'absolute',bottom:0,left:0,right:0,display:'flex',
-          alignItems:'center',justifyContent:'center',gap:12,
-          padding:'4px 8px',background:'rgba(10,8,5,0.8)'}}>
-          <button onClick={()=>setCurrentPage(p=>Math.max(0,p-1))} disabled={currentPage===0}
-            style={{background:'none',border:'none',color:C.cream,fontSize:'1.1rem',cursor:'pointer',opacity:currentPage===0?0.3:1}}>&#8592;</button>
-          <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.7rem',color:C.cream}}>p.{currentPage+1}/{pageImages.length}</span>
-          <button onClick={()=>setCurrentPage(p=>Math.min(pageImages.length-1,p+1))} disabled={currentPage===pageImages.length-1}
-            style={{background:'none',border:'none',color:C.cream,fontSize:'1.1rem',cursor:'pointer',opacity:currentPage===pageImages.length-1?0.3:1}}>&#8594;</button>
-        </div>
-      )}
-    </div>
+    <ZoomableScore
+      src={pageImages[currentPage]}
+      tapPos={tapPos}
+      currentPage={currentPage}
+      totalPages={pageImages.length}
+      onPageChange={setCurrentPage}
+      flex={land?'1 1 0':'0 0 42%'}
+    />
   ) : null;
 
   // ── Exercise display ───────────────────────────────────────────────
@@ -2016,7 +2154,7 @@ function Spinner({ label, value, set, min, max }) {
 /* ═══════════════════════════════════════════════════════════════════════
    ICU — SESSION SCREEN
 ═══════════════════════════════════════════════════════════════════════ */
-function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, increment, onBack }) {
+function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, increment, onBack, onDone, profile, piece, tapPos }) {
   const steps     = useRef(generateSteps(N,startTempo,goalTempo,increment)).current;
   const [idx,setIdx]         = useState(0);
   const [metroOn,setMetroOn] = useState(false);
@@ -2036,19 +2174,45 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   // Log practice session on mount
   useEffect(()=>{
     try {
-      const prof = JSON.parse(localStorage.getItem('murProfile')||'{}');
+      const prof = profile || JSON.parse(localStorage.getItem('murProfile')||'{}');
       if(prof.email) {
         sbPost('/rest/v1/practice_log', {
           user_email: prof.email,
-          piece_id: null,
+          piece_id: piece?.id||null,
           strategy: 'ICU',
           n_units: N,
           start_tempo: startTempo,
           goal_tempo: goalTempo,
+          score_page: tapPos?.page??null,
+          score_x: tapPos?.x??null,
+          score_y: tapPos?.y??null,
         }).catch(()=>{});
       }
     } catch(e){}
   },[]);
+
+  const handleDone = () => {
+    // Log completion and return to score
+    try {
+      const prof = profile || JSON.parse(localStorage.getItem('murProfile')||'{}');
+      if(prof.email) {
+        sbPost('/rest/v1/practice_log', {
+          user_email: prof.email,
+          piece_id: piece?.id||null,
+          strategy: 'ICU',
+          n_units: N,
+          start_tempo: startTempo,
+          goal_tempo: goalTempo,
+          completed_tempo: step.tempo,
+          score_page: tapPos?.page??null,
+          score_x: tapPos?.x??null,
+          score_y: tapPos?.y??null,
+          event: 'completed',
+        }).catch(()=>{});
+      }
+    } catch(e){}
+    if(onDone) onDone();
+  };
   const atGoal   = step.tempo>=goalTempo;
   const pastGoal = step.tempo>goalTempo;
   const nextPhaseIdx = steps.findIndex((s,i)=>i>safeIdx&&s.phase===step.phase+1);
@@ -2143,7 +2307,11 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
             {metroOn?'⏸':'▶'}
           </button>
         </div>
-        <div style={{minWidth:52}} />
+        <button onClick={handleDone} style={{
+          background:C.accent,border:`1px solid ${C.accent}`,
+          color:'white',padding:'6px 14px',cursor:'pointer',
+          fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+          letterSpacing:'0.1em',flexShrink:0}}>DONE ✓</button>
       </div>
       <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:compact?'2px 12px 2px':'3px 12px 4px',fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:compact?12:15,color:C.cream}}>
         <span>Play from</span>
