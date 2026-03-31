@@ -1292,6 +1292,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
   const exDivRef       = useRef(null);
   const liveStaffRef   = useRef(null);
   const micRef     = useRef({active:false,stream:null,ctx:null,analyser:null,timer:null});
+  const pianoScrollRef = useRef(null);
 
   // ── Audio ──────────────────────────────────────────────────────────
   function getAC() {
@@ -1410,6 +1411,18 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
     svg.addEventListener('touchend',e=>{if(_ttimer){clearTimeout(_ttimer);_ttimer=null;if(!_tswiped)handlePress(e);}},{passive:true});
     return()=>{alive=false;};
   },[activeGroup,addNote,pianoMounted,accMode]);
+
+  // Scroll piano to centre on C4 every time it mounts
+  useEffect(()=>{
+    if(!pianoMounted||!pianoScrollRef.current) return;
+    // 45 white keys total (A1,B1 + 6 octaves×7 + C8); C4 is index 16
+    const C4_INDEX=16, TOTAL_WHITES=45;
+    const pxPerKey=2200/TOTAL_WHITES;
+    const c4px=C4_INDEX*pxPerKey;
+    const container=pianoScrollRef.current;
+    const scrollTo=c4px-container.clientWidth/2+pxPerKey/2;
+    container.scrollLeft=Math.max(0,scrollTo);
+  },[pianoMounted]);
 
   // ── Live staff preview — renders current notes as simple scale ─────
   useEffect(()=>{
@@ -1924,7 +1937,7 @@ K:${abcKey}${abcClef}
       {/* Keyboard — gated, bigger, with drag bands */}
       {activeGroup && instrSelected && inputTab==='keys' && (
         <>
-          <div style={{flexShrink:0,overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+          <div ref={pianoScrollRef} style={{flexShrink:0,overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
             <svg ref={pianoRefCb} viewBox="0 0 1008 130" preserveAspectRatio="none"
               style={{width:2200,height:200,display:'block',cursor:'pointer',touchAction:'none'}} />
           </div>
