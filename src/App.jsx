@@ -8,6 +8,7 @@ const SB_KEY = 'sb_publishable_BwKwqYjD_TTeL2BTu7jpTw_YQfdqvQ7';
 const SB_H   = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' };
 const sbGet  = p => fetch(SB_URL + p, { headers: SB_H });
 const sbPost = (p, b) => fetch(SB_URL + p, { method:'POST', headers:{ ...SB_H, Prefer:'return=representation' }, body:JSON.stringify(b) });
+const sbDelete = p => fetch(SB_URL + p, { method:'DELETE', headers: SB_H });
 
 /* ═══════════════════════════════════════════════════════════════════════
    DESIGN SYSTEM
@@ -954,6 +955,8 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
   const [panel, setPanel] = useState('strategies'); // 'strategies' | 'rv'
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null); // exercise id pending delete
+  const [deleting, setDeleting] = useState(false);
 
   const openRV = async () => {
     setPanel('rv');
@@ -979,6 +982,16 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
       setExercises(nearby);
     } catch { setExercises([]); }
     setLoading(false);
+  };
+
+  const deleteExercise = async (id) => {
+    setDeleting(true);
+    try {
+      await sbDelete(`/rest/v1/exercises?id=eq.${id}`);
+      setExercises(prev => prev.filter(e => e.id !== id));
+    } catch(e) { console.error('Delete failed', e); }
+    setConfirmDelete(null);
+    setDeleting(false);
   };
 
   const cardBase = {
@@ -1082,20 +1095,58 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
                   SAVED EXERCISES NEAR THIS SPOT
                 </div>
                 {exercises.map(ex=>(
-                  <button key={ex.id}
-                    style={{...cardBase,border:`1px solid ${C.bord}`,background:C.panel}}
-                    onClick={()=>onRV(ex)}
-                    onMouseEnter={e=>e.currentTarget.style.background=C.surf}
-                    onMouseLeave={e=>e.currentTarget.style.background=C.panel}>
-                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.15rem',
-                      letterSpacing:'0.08em',color:C.cream}}>
-                      {ex.doc_name||'Untitled Exercise'}
-                    </div>
-                    <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:C.muted}}>
-                      {[ex.grouping, ex.instrument].filter(Boolean).join(' · ')}
-                      {ex.notes ? ` · ${ex.notes.split(',').filter(Boolean).length} notes` : ''}
-                    </div>
-                  </button>
+                  <div key={ex.id} style={{position:'relative'}}>
+                    <button
+                      style={{...cardBase,border:`1px solid ${C.bord}`,background:C.panel,
+                        paddingRight:48, // room for delete button
+                      }}
+                      onClick={()=>{ if(confirmDelete!==ex.id) onRV(ex); }}
+                      onMouseEnter={e=>e.currentTarget.style.background=C.surf}
+                      onMouseLeave={e=>e.currentTarget.style.background=C.panel}>
+                      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.15rem',
+                        letterSpacing:'0.08em',color:C.cream}}>
+                        {ex.doc_name||'Untitled Exercise'}
+                      </div>
+                      <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:C.muted}}>
+                        {[ex.grouping, ex.instrument].filter(Boolean).join(' · ')}
+                        {ex.notes ? ` · ${ex.notes.split(',').filter(Boolean).length} notes` : ''}
+                      </div>
+                    </button>
+                    {/* Delete button */}
+                    {confirmDelete !== ex.id ? (
+                      <button
+                        onClick={e=>{e.stopPropagation();setConfirmDelete(ex.id);}}
+                        style={{position:'absolute',top:'50%',right:10,transform:'translateY(-50%)',
+                          background:'none',border:`1px solid #444`,color:'#888',
+                          width:28,height:28,borderRadius:4,cursor:'pointer',fontSize:'0.9rem',
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          WebkitTapHighlightColor:'transparent',flexShrink:0}}>
+                        ✕
+                      </button>
+                    ) : (
+                      <div style={{position:'absolute',top:0,left:0,right:0,bottom:0,
+                        background:'rgba(20,10,8,0.95)',display:'flex',alignItems:'center',
+                        justifyContent:'center',gap:10,padding:'0 14px'}}>
+                        <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+                          letterSpacing:'0.1em',color:'#e57373',flex:1}}>DELETE THIS EXERCISE?</span>
+                        <button onClick={e=>{e.stopPropagation();deleteExercise(ex.id);}}
+                          disabled={deleting}
+                          style={{background:'#e53535',border:'none',color:'white',
+                            padding:'6px 14px',fontFamily:"'Bebas Neue',sans-serif",
+                            fontSize:'0.85rem',letterSpacing:'0.1em',cursor:'pointer',
+                            WebkitTapHighlightColor:'transparent'}}>
+                          {deleting?'…':'DELETE'}
+                        </button>
+                        <button onClick={e=>{e.stopPropagation();setConfirmDelete(null);}}
+                          style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
+                            padding:'6px 12px',fontFamily:"'Bebas Neue',sans-serif",
+                            fontSize:'0.85rem',letterSpacing:'0.1em',cursor:'pointer',
+                            WebkitTapHighlightColor:'transparent'}}>
+                          CANCEL
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </>
             )}
@@ -1719,19 +1770,35 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
   };
 
   // ── Save ───────────────────────────────────────────────────────────
-  const saveExercise = async () => {
+  const [dupWarning, setDupWarning] = useState(false);
+
+  const saveExercise = async (force=false) => {
     if(!selNotes.length||!activeGroup) return;
-    setSaving(true);setSaveMsg('Saving...');
+    if(!docName.trim()) { setSaveMsg('Please add a title first.'); return; }
+    setSaving(true); setSaveMsg(''); setDupWarning(false);
     try {
+      // Duplicate check: same notes + grouping for this user
+      if(!force) {
+        const r = await sbGet(
+          `/rest/v1/exercises?user_email=eq.${encodeURIComponent(profile.email)}&notes=eq.${encodeURIComponent(selNotes.join(','))}&grouping=eq.${encodeURIComponent(g2s(activeGroup))}&limit=1`
+        );
+        const existing = await r.json();
+        if(existing?.length > 0) {
+          setSaveMsg('');
+          setDupWarning(true);
+          setSaving(false);
+          return;
+        }
+      }
       await sbPost('/rest/v1/exercises',{
-        user_email:profile.email,doc_name:docName.trim()||null,
+        user_email:profile.email,doc_name:docName.trim(),
         grouping:g2s(activeGroup),clef,key,notes:selNotes.join(','),
         instrument:instrName||profile.instrument||'',
         piece_id:piece?.id||null,
         score_page:tapPos?.page??null,
         score_y:tapPos?.y??null,
       });
-      setSaveMsg('Saved!');setTimeout(()=>setSaveMsg(''),2000);
+      setSaveMsg('Saved!'); setTimeout(()=>setSaveMsg(''),2500);
     } catch { setSaveMsg('Save failed.'); }
     setSaving(false);
   };
@@ -1999,13 +2066,24 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
           ← EDIT
         </Btn>
         <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
-          placeholder="Name this exercise…"
+          placeholder="Title required to save"
           style={{flex:1,background:C.panel,border:`1px solid ${C.bord}`,color:C.cream,
             padding:'6px 10px',fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',outline:'none'}}/>
-        <Btn onClick={saveExercise} disabled={saving} style={{fontSize:'0.8rem',padding:'7px 12px',flexShrink:0,borderColor:C.bord2}}>
+        <Btn onClick={saveExercise} disabled={saving||!docName.trim()} style={{fontSize:'0.8rem',padding:'7px 12px',flexShrink:0,borderColor:C.bord2}}>
           {saving?'SAVING…':'SAVE'}
         </Btn>
-        {saveMsg && <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.gold,flexShrink:0}}>{saveMsg}</span>}
+        {saveMsg && <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:saveMsg.includes('title')||saveMsg.includes('failed')?'#e57373':C.gold,flexShrink:0}}>{saveMsg}</span>}
+        {dupWarning && (
+          <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+            <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:'#e5a835'}}>Duplicate — save anyway?</span>
+            <button onClick={()=>saveExercise(true)} style={{background:C.accent,border:'none',color:'white',
+              padding:'3px 10px',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+              letterSpacing:'0.08em',cursor:'pointer'}}>YES</button>
+            <button onClick={()=>setDupWarning(false)} style={{background:'none',border:`1px solid ${C.bord}`,
+              color:C.muted,padding:'3px 8px',fontFamily:"'Bebas Neue',sans-serif",
+              fontSize:'0.75rem',cursor:'pointer'}}>NO</button>
+          </div>
+        )}
         <button onClick={handleRVDone} style={{
           background:C.accent,border:`1px solid ${C.accent}`,
           color:'white',padding:'7px 14px',cursor:'pointer',
@@ -2072,13 +2150,24 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
       <div style={{display:'flex',alignItems:'center',gap:6,padding:'6px 10px',
         flexShrink:0,borderBottom:`1px solid ${C.bord}`,background:'#0e0c09'}}>
         <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
-          placeholder="Name this exercise…"
+          placeholder="Title required to save"
           style={{flex:1,background:C.panel,border:`1px solid ${C.bord}`,color:C.cream,
             padding:'6px 10px',fontFamily:"'Inconsolata',monospace",fontSize:'0.9rem',outline:'none'}}/>
-        <Btn onClick={saveExercise} disabled={saving} style={{fontSize:'0.85rem',padding:'7px 14px',flexShrink:0,borderColor:C.bord2}}>
+        <Btn onClick={saveExercise} disabled={saving||!docName.trim()} style={{fontSize:'0.85rem',padding:'7px 14px',flexShrink:0,borderColor:C.bord2}}>
           {saving?'SAVING…':'SAVE'}
         </Btn>
-        {saveMsg && <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.gold,flexShrink:0}}>{saveMsg}</span>}
+        {saveMsg && <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:saveMsg.includes('title')||saveMsg.includes('failed')?'#e57373':C.gold,flexShrink:0}}>{saveMsg}</span>}
+        {dupWarning && (
+          <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+            <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:'#e5a835'}}>Duplicate — save anyway?</span>
+            <button onClick={()=>saveExercise(true)} style={{background:C.accent,border:'none',color:'white',
+              padding:'4px 12px',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.8rem',
+              letterSpacing:'0.08em',cursor:'pointer'}}>YES</button>
+            <button onClick={()=>setDupWarning(false)} style={{background:'none',border:`1px solid ${C.bord}`,
+              color:C.muted,padding:'4px 10px',fontFamily:"'Bebas Neue',sans-serif",
+              fontSize:'0.8rem',cursor:'pointer'}}>NO</button>
+          </div>
+        )}
       </div>
       <div ref={exDivRef} style={{background:'white',flex:'1 1 0',overflowY:'auto',padding:'8px 12px'}} />
     </div>
@@ -2336,7 +2425,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
           letterSpacing:'0.18em',color:C.muted}}>DOCUMENT NAME</div>
         <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
-          placeholder="e.g. Brahms mvt 1"
+          placeholder="Title required to save"
           style={{fontSize:'0.85rem',padding:'7px 10px',background:'#1a1410',
             border:`1px solid ${C.bord}`,color:C.cream,
             fontFamily:"'Inconsolata',monospace",outline:'none'}} />
@@ -2349,12 +2438,24 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
             letterSpacing:'0.12em',cursor:canGenerate?'pointer':'not-allowed',
             WebkitTapHighlightColor:'transparent',
           }}>GENERATE EXERCISES</button>
-          <Btn onClick={saveExercise} disabled={!canGenerate||saving} full
+          <Btn onClick={saveExercise} disabled={!canGenerate||saving||!docName.trim()} full
             style={{fontSize:'0.75rem',color:C.cream,borderColor:C.bord2}}>
             {saving?'SAVING...':'SAVE'}
           </Btn>
         </div>
-        {saveMsg && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.gold}}>{saveMsg}</div>}
+        {saveMsg && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+          color:saveMsg.includes('title')||saveMsg.includes('failed')?'#e57373':C.gold}}>{saveMsg}</div>}
+        {dupWarning && (
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:'#e5a835'}}>An identical exercise already exists. Save anyway?</span>
+            <button onClick={()=>saveExercise(true)} style={{background:C.accent,border:'none',color:'white',
+              padding:'5px 14px',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+              letterSpacing:'0.08em',cursor:'pointer'}}>YES, SAVE</button>
+            <button onClick={()=>setDupWarning(false)} style={{background:'none',border:`1px solid ${C.bord}`,
+              color:C.muted,padding:'5px 12px',fontFamily:"'Bebas Neue',sans-serif",
+              fontSize:'0.85rem',cursor:'pointer'}}>CANCEL</button>
+          </div>
+        )}
       </div>
       )}
 
