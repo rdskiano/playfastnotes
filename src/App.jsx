@@ -9,6 +9,7 @@ const SB_H   = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Typ
 const sbGet  = p => fetch(SB_URL + p, { headers: SB_H });
 const sbPost = (p, b) => fetch(SB_URL + p, { method:'POST', headers:{ ...SB_H, Prefer:'return=representation' }, body:JSON.stringify(b) });
 const sbDelete = p => fetch(SB_URL + p, { method:'DELETE', headers: SB_H });
+const sbPatch = (p, b) => fetch(SB_URL + p, { method:'PATCH', headers:{ ...SB_H, Prefer:'return=representation' }, body:JSON.stringify(b) });
 
 /* ═══════════════════════════════════════════════════════════════════════
    DESIGN SYSTEM
@@ -948,47 +949,118 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   );
 }
 
+/* ── Exercise card with delete confirm ──────────────────────────────── */
+function ExerciseCard({ ex, confirmDelete, setConfirmDelete, deleting, onDelete, onOpen }) {
+  return (
+    <div style={{position:'relative'}}>
+      <button
+        style={{display:'flex',flexDirection:'column',gap:8,padding:'16px 52px 16px 18px',
+          width:'100%',textAlign:'left',cursor:'pointer',
+          border:`1px solid ${C.bord}`,background:C.panel,
+          WebkitTapHighlightColor:'transparent',transition:'background 0.12s'}}
+        onClick={()=>{ if(confirmDelete!==ex.id) onOpen(ex); }}
+        onMouseEnter={e=>e.currentTarget.style.background=C.surf}
+        onMouseLeave={e=>e.currentTarget.style.background=C.panel}>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.15rem',
+          letterSpacing:'0.08em',color:C.cream}}>
+          {ex.doc_name||'Untitled Exercise'}
+        </div>
+        <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:C.muted}}>
+          {[ex.grouping, ex.instrument].filter(Boolean).join(' · ')}
+          {ex.notes ? ` · ${ex.notes.split(',').filter(Boolean).length} notes` : ''}
+        </div>
+      </button>
+      {confirmDelete !== ex.id ? (
+        <button onClick={e=>{e.stopPropagation();setConfirmDelete(ex.id);}}
+          style={{position:'absolute',top:'50%',right:12,transform:'translateY(-50%)',
+            background:'none',border:`1px solid #444`,color:'#888',
+            width:28,height:28,borderRadius:4,cursor:'pointer',fontSize:'0.9rem',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            WebkitTapHighlightColor:'transparent'}}>✕</button>
+      ) : (
+        <div style={{position:'absolute',inset:0,background:'rgba(20,10,8,0.95)',
+          display:'flex',alignItems:'center',justifyContent:'center',gap:10,padding:'0 14px'}}>
+          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+            letterSpacing:'0.1em',color:'#e57373',flex:1}}>DELETE THIS EXERCISE?</span>
+          <button onClick={e=>{e.stopPropagation();onDelete(ex.id);}} disabled={deleting}
+            style={{background:'#e53535',border:'none',color:'white',padding:'6px 14px',
+              fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+              letterSpacing:'0.1em',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+            {deleting?'…':'DELETE'}
+          </button>
+          <button onClick={e=>{e.stopPropagation();setConfirmDelete(null);}}
+            style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
+              padding:'6px 12px',fontFamily:"'Bebas Neue',sans-serif",
+              fontSize:'0.85rem',letterSpacing:'0.1em',cursor:'pointer',
+              WebkitTapHighlightColor:'transparent'}}>CANCEL</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    STRATEGY OVERLAY — floating panel over score
 ═══════════════════════════════════════════════════════════════════════ */
 function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
-  const [panel, setPanel] = useState('strategies'); // 'strategies' | 'rv'
-  const [exercises, setExercises] = useState([]);
+  const [panel, setPanel] = useState('strategies');
+  const [nearby, setNearby] = useState([]);
+  const [unlocated, setUnlocated] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null); // exercise id pending delete
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [attaching, setAttaching] = useState(null); // exercise id being attached
 
   const openRV = async () => {
     setPanel('rv');
     setLoading(true);
     try {
-      // Fetch all user exercises — filter client-side for flexibility
-      // (piece_id/score_page/score_y may not exist on older rows)
       const r = await sbGet(
         `/rest/v1/exercises?user_email=eq.${encodeURIComponent(profile.email)}&order=created_at.desc&limit=50`
       );
       const all = await r.json() || [];
-      // Filter: same piece (if we have piece_id) AND same page AND close Y
-      const nearby = all.filter(ex => {
-        // If this exercise has a piece_id, it must match
-        if(ex.piece_id && piece?.id && ex.piece_id !== piece.id) return false;
-        // Page must match (or exercise has no page stored yet)
-        const samePage = ex.score_page == null || parseInt(ex.score_page) === tapPos?.page;
-        if(!samePage) return false;
-        // Y within ±20% (generous to account for slight re-taps)
-        const closeY = ex.score_y == null || Math.abs(parseFloat(ex.score_y) - (tapPos?.y||0)) < 0.20;
-        return closeY;
+
+      const nb = [], ul = [];
+      all.forEach(ex => {
+        const hasLocation = ex.score_page != null || ex.score_y != null;
+        if(!hasLocation) {
+          ul.push(ex);
+          return;
+        }
+        // Has location — check if it matches this tap
+        if(ex.piece_id && piece?.id && ex.piece_id !== piece.id) return;
+        const samePage = parseInt(ex.score_page) === tapPos?.page;
+        const closeY = Math.abs(parseFloat(ex.score_y) - (tapPos?.y||0)) < 0.20;
+        if(samePage && closeY) nb.push(ex);
       });
-      setExercises(nearby);
-    } catch { setExercises([]); }
+
+      setNearby(nb);
+      setUnlocated(ul);
+    } catch { setNearby([]); setUnlocated([]); }
     setLoading(false);
+  };
+
+  const attachToSpot = async (ex) => {
+    setAttaching(ex.id);
+    try {
+      await sbPatch(
+        `/rest/v1/exercises?id=eq.${ex.id}`,
+        { piece_id: piece?.id||null, score_page: tapPos?.page??null, score_y: tapPos?.y??null }
+      );
+      // Move from unlocated → nearby
+      const updated = {...ex, piece_id: piece?.id||null, score_page: tapPos?.page??null, score_y: tapPos?.y??null};
+      setUnlocated(prev => prev.filter(e => e.id !== ex.id));
+      setNearby(prev => [updated, ...prev]);
+    } catch(e) { console.error('Attach failed', e); }
+    setAttaching(null);
   };
 
   const deleteExercise = async (id) => {
     setDeleting(true);
     try {
       await sbDelete(`/rest/v1/exercises?id=eq.${id}`);
-      setExercises(prev => prev.filter(e => e.id !== id));
+      setNearby(prev => prev.filter(e => e.id !== id));
+      setUnlocated(prev => prev.filter(e => e.id !== id));
     } catch(e) { console.error('Delete failed', e); }
     setConfirmDelete(null);
     setDeleting(false);
@@ -1088,60 +1160,90 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
               <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.9rem',
                 color:C.muted,padding:'12px 4px'}}>Loading saved exercises…</div>
             )}
-            {!loading && exercises.length > 0 && (
+            {!loading && nearby.length > 0 && (
               <>
                 <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
                   letterSpacing:'0.18em',color:C.muted,padding:'4px 4px 0'}}>
                   SAVED EXERCISES NEAR THIS SPOT
                 </div>
-                {exercises.map(ex=>(
-                  <div key={ex.id} style={{position:'relative'}}>
-                    <button
-                      style={{...cardBase,border:`1px solid ${C.bord}`,background:C.panel,
-                        paddingRight:48, // room for delete button
-                      }}
-                      onClick={()=>{ if(confirmDelete!==ex.id) onRV(ex); }}
-                      onMouseEnter={e=>e.currentTarget.style.background=C.surf}
-                      onMouseLeave={e=>e.currentTarget.style.background=C.panel}>
-                      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.15rem',
-                        letterSpacing:'0.08em',color:C.cream}}>
-                        {ex.doc_name||'Untitled Exercise'}
-                      </div>
-                      <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:C.muted}}>
-                        {[ex.grouping, ex.instrument].filter(Boolean).join(' · ')}
-                        {ex.notes ? ` · ${ex.notes.split(',').filter(Boolean).length} notes` : ''}
-                      </div>
-                    </button>
-                    {/* Delete button */}
-                    {confirmDelete !== ex.id ? (
-                      <button
-                        onClick={e=>{e.stopPropagation();setConfirmDelete(ex.id);}}
-                        style={{position:'absolute',top:'50%',right:10,transform:'translateY(-50%)',
-                          background:'none',border:`1px solid #444`,color:'#888',
-                          width:28,height:28,borderRadius:4,cursor:'pointer',fontSize:'0.9rem',
-                          display:'flex',alignItems:'center',justifyContent:'center',
-                          WebkitTapHighlightColor:'transparent',flexShrink:0}}>
-                        ✕
+                {nearby.map(ex=>(
+                  <ExerciseCard key={ex.id} ex={ex}
+                    confirmDelete={confirmDelete} setConfirmDelete={setConfirmDelete}
+                    deleting={deleting} onDelete={deleteExercise} onOpen={onRV}/>
+                ))}
+              </>
+            )}
+            {!loading && nearby.length === 0 && (
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                fontSize:'1rem',color:C.muted,padding:'4px 4px'}}>
+                No saved exercises near this spot yet.
+              </div>
+            )}
+
+            {/* Unlocated exercises */}
+            {!loading && unlocated.length > 0 && (
+              <>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+                  letterSpacing:'0.18em',color:C.muted,padding:'12px 4px 0',
+                  borderTop:`1px solid ${C.bord}`,marginTop:4}}>
+                  UNLOCATED EXERCISES
+                </div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                  fontSize:'0.9rem',color:C.muted,padding:'0 4px 4px',lineHeight:1.4}}>
+                  These have no score location attached. Tap "Attach here" to link one to this spot, or open it directly.
+                </div>
+                {unlocated.map(ex=>(
+                  <div key={ex.id} style={{position:'relative',border:`1px solid ${C.bord}`,
+                    background:C.panel,display:'flex',flexDirection:'column',gap:6,padding:'14px 46px 14px 16px'}}>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
+                      letterSpacing:'0.08em',color:C.cream}}>
+                      {ex.doc_name||'Untitled Exercise'}
+                    </div>
+                    <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.82rem',color:C.muted}}>
+                      {[ex.grouping, ex.instrument].filter(Boolean).join(' · ')}
+                      {ex.notes ? ` · ${ex.notes.split(',').filter(Boolean).length} notes` : ''}
+                    </div>
+                    <div style={{display:'flex',gap:8,marginTop:2}}>
+                      <button onClick={()=>attachToSpot(ex)} disabled={attaching===ex.id}
+                        style={{background:'#1a2a1a',border:`1px solid #3a6a3a`,color:'#7ec87e',
+                          padding:'5px 12px',fontFamily:"'Bebas Neue',sans-serif",
+                          fontSize:'0.8rem',letterSpacing:'0.1em',cursor:'pointer',
+                          WebkitTapHighlightColor:'transparent',
+                          opacity:attaching===ex.id?0.6:1}}>
+                        {attaching===ex.id ? 'ATTACHING…' : '📍 ATTACH TO THIS SPOT'}
                       </button>
+                      <button onClick={()=>onRV(ex)}
+                        style={{background:'none',border:`1px solid ${C.bord}`,color:C.muted,
+                          padding:'5px 12px',fontFamily:"'Bebas Neue',sans-serif",
+                          fontSize:'0.8rem',letterSpacing:'0.1em',cursor:'pointer',
+                          WebkitTapHighlightColor:'transparent'}}>
+                        OPEN
+                      </button>
+                    </div>
+                    {/* Delete */}
+                    {confirmDelete !== ex.id ? (
+                      <button onClick={e=>{e.stopPropagation();setConfirmDelete(ex.id);}}
+                        style={{position:'absolute',top:10,right:10,background:'none',
+                          border:`1px solid #444`,color:'#888',width:28,height:28,
+                          borderRadius:4,cursor:'pointer',fontSize:'0.9rem',
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          WebkitTapHighlightColor:'transparent'}}>✕</button>
                     ) : (
-                      <div style={{position:'absolute',top:0,left:0,right:0,bottom:0,
-                        background:'rgba(20,10,8,0.95)',display:'flex',alignItems:'center',
-                        justifyContent:'center',gap:10,padding:'0 14px'}}>
+                      <div style={{position:'absolute',inset:0,background:'rgba(20,10,8,0.95)',
+                        display:'flex',alignItems:'center',justifyContent:'center',gap:10,padding:'0 14px'}}>
                         <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
-                          letterSpacing:'0.1em',color:'#e57373',flex:1}}>DELETE THIS EXERCISE?</span>
+                          letterSpacing:'0.1em',color:'#e57373',flex:1}}>DELETE?</span>
                         <button onClick={e=>{e.stopPropagation();deleteExercise(ex.id);}}
                           disabled={deleting}
                           style={{background:'#e53535',border:'none',color:'white',
                             padding:'6px 14px',fontFamily:"'Bebas Neue',sans-serif",
-                            fontSize:'0.85rem',letterSpacing:'0.1em',cursor:'pointer',
-                            WebkitTapHighlightColor:'transparent'}}>
+                            fontSize:'0.85rem',letterSpacing:'0.1em',cursor:'pointer'}}>
                           {deleting?'…':'DELETE'}
                         </button>
                         <button onClick={e=>{e.stopPropagation();setConfirmDelete(null);}}
                           style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
                             padding:'6px 12px',fontFamily:"'Bebas Neue',sans-serif",
-                            fontSize:'0.85rem',letterSpacing:'0.1em',cursor:'pointer',
-                            WebkitTapHighlightColor:'transparent'}}>
+                            fontSize:'0.85rem',letterSpacing:'0.1em',cursor:'pointer'}}>
                           CANCEL
                         </button>
                       </div>
@@ -1149,12 +1251,6 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
                   </div>
                 ))}
               </>
-            )}
-            {!loading && exercises.length === 0 && (
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                fontSize:'1rem',color:C.muted,padding:'4px 4px'}}>
-                No saved exercises near this spot yet.
-              </div>
             )}
           </div>
         )}
