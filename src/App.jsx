@@ -9,7 +9,7 @@ const SB_H   = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Typ
 const sbGet  = p => fetch(SB_URL + p, { headers: SB_H });
 const sbPost = (p, b) => fetch(SB_URL + p, { method:'POST', headers:{ ...SB_H, Prefer:'return=representation' }, body:JSON.stringify(b) });
 const sbDelete = p => fetch(SB_URL + p, { method:'DELETE', headers: SB_H });
-const sbPatch = (p, b) => fetch(SB_URL + p, { method:'PATCH', headers:{ ...SB_H, Prefer:'return=representation' }, body:JSON.stringify(b) });
+const sbPatch = (p, b) => fetch(SB_URL + p, { method:'PATCH', headers:{ ...SB_H, Prefer:'return=minimal' }, body:JSON.stringify(b) });
 
 /* ═══════════════════════════════════════════════════════════════════════
    DESIGN SYSTEM
@@ -1040,18 +1040,31 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
     setLoading(false);
   };
 
+  const [attachError, setAttachError] = useState(null);
+
   const attachToSpot = async (ex) => {
     setAttaching(ex.id);
+    setAttachError(null);
     try {
-      await sbPatch(
+      const res = await sbPatch(
         `/rest/v1/exercises?id=eq.${ex.id}`,
         { piece_id: piece?.id||null, score_page: tapPos?.page??null, score_y: tapPos?.y??null }
       );
-      // Move from unlocated → nearby
+      if(!res.ok) {
+        const body = await res.text();
+        console.error('Attach failed:', res.status, body);
+        setAttachError(`Failed (${res.status}) — check that score_page, score_y, piece_id columns exist in Supabase.`);
+        setAttaching(null);
+        return;
+      }
+      // Confirmed success — move from unlocated → nearby
       const updated = {...ex, piece_id: piece?.id||null, score_page: tapPos?.page??null, score_y: tapPos?.y??null};
       setUnlocated(prev => prev.filter(e => e.id !== ex.id));
       setNearby(prev => [updated, ...prev]);
-    } catch(e) { console.error('Attach failed', e); }
+    } catch(e) {
+      setAttachError('Network error — could not attach.');
+      console.error('Attach error', e);
+    }
     setAttaching(null);
   };
 
@@ -1192,6 +1205,13 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
                   fontSize:'0.9rem',color:C.muted,padding:'0 4px 4px',lineHeight:1.4}}>
                   These have no score location attached. Tap "Attach here" to link one to this spot, or open it directly.
                 </div>
+                {attachError && (
+                  <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+                    color:'#e57373',padding:'6px 8px',background:'rgba(229,53,53,0.1)',
+                    border:'1px solid rgba(229,53,53,0.3)'}}>
+                    {attachError}
+                  </div>
+                )}
                 {unlocated.map(ex=>(
                   <div key={ex.id} style={{position:'relative',border:`1px solid ${C.bord}`,
                     background:C.panel,display:'flex',flexDirection:'column',gap:6,padding:'14px 46px 14px 16px'}}>
