@@ -696,16 +696,19 @@ function SignInScreen({ onSignIn }) {
    LIBRARY
 ═══════════════════════════════════════════════════════════════════════ */
 function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut }) {
-  const [tab,setTab]         = useState('pieces');
-  const [pieces,setPieces]   = useState([]);
+  const [tab,setTab]             = useState('pieces');
+  const [pieces,setPieces]       = useState([]);
   const [exercises,setExercises] = useState([]);
-  const [loading,setLoading] = useState(true);
+  const [loading,setLoading]     = useState(true);
   const [showUpload,setShowUpload] = useState(false);
-  const [title,setTitle]     = useState('');
-  const [composer,setComposer] = useState('');
-  const [inst,setInst]       = useState(profile.instrument||'');
+  const [title,setTitle]         = useState('');
+  const [composer,setComposer]   = useState('');
+  const [inst,setInst]           = useState(profile.instrument||'');
   const [uploading,setUploading] = useState(false);
   const [uploadMsg,setUploadMsg] = useState('');
+  const [search,setSearch]       = useState('');
+  const [confirmDel,setConfirmDel] = useState(null); // {type:'piece'|'exercise', id, title}
+  const [deleting,setDeleting]   = useState(false);
   const fileRef = useRef();
   const INSTRUMENTS = ['Flute','Oboe','Clarinet','Bassoon','Saxophone','Horn','Trumpet','Trombone','Tuba','Violin','Viola','Cello','Double Bass','Harp','Piano','Percussion','Voice','Other'];
 
@@ -715,7 +718,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
     setLoading(true);
     try {
       if(tab==='pieces'){
-        const r = await sbGet(`/rest/v1/pieces?user_email=eq.${encodeURIComponent(profile.email)}&order=created_at.desc`);
+        const r = await sbGet(`/rest/v1/pieces?user_email=eq.${encodeURIComponent(profile.email)}&order=composer.asc,title.asc`);
         setPieces(await r.json()||[]);
       } else {
         const r = await sbGet(`/rest/v1/exercises?user_email=eq.${encodeURIComponent(profile.email)}&order=created_at.desc`);
@@ -723,6 +726,29 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
       }
     } catch { setPieces([]); setExercises([]); }
     setLoading(false);
+  };
+
+  const deletePiece = async (piece) => {
+    setDeleting(true);
+    try {
+      // Cascade: delete all exercises for this piece first
+      await sbDelete(`/rest/v1/exercises?piece_id=eq.${piece.id}`);
+      // Delete the piece record
+      await sbDelete(`/rest/v1/pieces?id=eq.${piece.id}`);
+      setPieces(prev => prev.filter(p => p.id !== piece.id));
+    } catch(e) { console.error('Delete failed', e); }
+    setConfirmDel(null);
+    setDeleting(false);
+  };
+
+  const deleteExercise = async (ex) => {
+    setDeleting(true);
+    try {
+      await sbDelete(`/rest/v1/exercises?id=eq.${ex.id}`);
+      setExercises(prev => prev.filter(e => e.id !== ex.id));
+    } catch(e) { console.error('Delete failed', e); }
+    setConfirmDel(null);
+    setDeleting(false);
   };
 
   const uploadFile = async file => {
@@ -773,6 +799,19 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
     borderBottom:active?`2px solid ${C.accent}`:'2px solid transparent',
   });
 
+  const q = search.toLowerCase().trim();
+  const filteredPieces = q
+    ? pieces.filter(p=>(p.title||'').toLowerCase().includes(q)||(p.composer||'').toLowerCase().includes(q))
+    : pieces;
+
+  // Group pieces by composer
+  const grouped = filteredPieces.reduce((acc,p)=>{
+    const key = p.composer?.trim()||'No composer listed';
+    if(!acc[key]) acc[key]=[];
+    acc[key].push(p);
+    return acc;
+  },{});
+
   return (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <TopBar
@@ -783,9 +822,61 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
 
       {/* Tabs */}
       <div style={{display:'flex',borderBottom:`1px solid ${C.bord}`,flexShrink:0,background:C.ink}}>
-        <button style={tabStyle(tab==='pieces')} onClick={()=>setTab('pieces')}>Repertoire</button>
-        <button style={tabStyle(tab==='exercises')} onClick={()=>setTab('exercises')}>Exercises</button>
+        <button style={tabStyle(tab==='pieces')} onClick={()=>{setTab('pieces');setSearch('');}}>Repertoire</button>
+        <button style={tabStyle(tab==='exercises')} onClick={()=>{setTab('exercises');setSearch('');}}>Exercises</button>
       </div>
+
+      {/* Search bar */}
+      <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.bord}`,flexShrink:0,background:'#0e0c09'}}>
+        <input
+          type="text"
+          value={search}
+          onChange={e=>setSearch(e.target.value)}
+          placeholder={tab==='pieces'?'Search by title or composer…':'Search exercises…'}
+          style={{width:'100%',background:C.panel,border:`1px solid ${C.bord}`,color:C.cream,
+            padding:'8px 12px',fontFamily:"'Inconsolata',monospace",fontSize:'0.95rem',
+            outline:'none',boxSizing:'border-box'}}
+        />
+      </div>
+
+      {/* Delete confirm modal */}
+      {confirmDel && (
+        <>
+          <div onClick={()=>setConfirmDel(null)}
+            style={{position:'fixed',inset:0,zIndex:500,background:'rgba(0,0,0,0.6)'}}/>
+          <div style={{position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
+            zIndex:501,background:C.ink,border:`1px solid ${C.bord}`,
+            padding:28,width:320,display:'flex',flexDirection:'column',gap:14,
+            boxShadow:'0 8px 40px rgba(0,0,0,0.8)'}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+              letterSpacing:'0.18em',color:'#e57373'}}>
+              {confirmDel.type==='piece' ? 'DELETE REPERTOIRE?' : 'DELETE EXERCISE?'}
+            </div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1rem',
+              color:C.cream,lineHeight:1.5}}>
+              <strong>"{confirmDel.title}"</strong>
+              {confirmDel.type==='piece' &&
+                <span style={{color:C.muted}}><br/>This will also delete all exercises associated with this piece.</span>
+              }
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>confirmDel.type==='piece'?deletePiece(confirmDel):deleteExercise(confirmDel)}
+                disabled={deleting}
+                style={{flex:1,padding:'10px',background:'#e53535',border:'none',color:'white',
+                  fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+                  letterSpacing:'0.1em',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+                {deleting?'DELETING…':'YES, DELETE'}
+              </button>
+              <button onClick={()=>setConfirmDel(null)}
+                style={{flex:1,padding:'10px',background:'none',border:`1px solid ${C.bord}`,
+                  color:C.cream,fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+                  letterSpacing:'0.1em',cursor:'pointer',WebkitTapHighlightColor:'transparent'}}>
+                CANCEL
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       <div style={{flex:'1 1 0',overflowY:'auto',padding:16}}>
         {tab==='pieces' && (
@@ -820,16 +911,43 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
             )}
 
             {loading && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:C.muted,textAlign:'center',padding:40}}>Loading...</div>}
-            {!loading && pieces.length===0 && !showUpload && (
-              <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.1rem'}}>No pieces yet — add one above</div>
+            {!loading && filteredPieces.length===0 && !showUpload && (
+              <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.1rem'}}>
+                {q ? 'No results matching "'+q+'"' : 'No pieces yet — add one above'}
+              </div>
             )}
-            {pieces.map(p=>(
-              <div key={p.id} onClick={()=>openPiece(p)}
-                style={{padding:'16px 14px',borderBottom:`1px solid ${C.bord}`,cursor:'pointer'}}
-                onMouseEnter={e=>e.currentTarget.style.background=C.panel}
-                onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.15rem',letterSpacing:'0.08em',color:C.cream}}>{p.title||'Untitled'}</div>
-                <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.muted,marginTop:4}}>{[p.composer,p.instrument,p.file_type?.toUpperCase()].filter(Boolean).join(' · ')}</div>
+
+            {/* Grouped by composer */}
+            {Object.entries(grouped).map(([comp, cpieces])=>(
+              <div key={comp} style={{marginBottom:8}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+                  letterSpacing:'0.22em',color:C.muted,padding:'10px 4px 5px',
+                  borderBottom:`1px solid ${C.bord}`}}>
+                  {comp}
+                </div>
+                {cpieces.map(p=>(
+                  <div key={p.id} style={{display:'flex',alignItems:'center',
+                    borderBottom:`1px solid ${C.bord}`,
+                    background:'transparent',transition:'background 0.1s'}}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.panel}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <div onClick={()=>openPiece(p)}
+                      style={{flex:1,padding:'14px 14px',cursor:'pointer',minWidth:0}}>
+                      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
+                        letterSpacing:'0.08em',color:C.cream}}>{p.title||'Untitled'}</div>
+                      <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+                        color:C.muted,marginTop:3}}>
+                        {[p.instrument,p.file_type?.toUpperCase()].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                    <button
+                      onClick={e=>{e.stopPropagation();setConfirmDel({type:'piece',id:p.id,title:p.title||'Untitled',...p});}}
+                      style={{padding:'14px 16px',background:'none',border:'none',
+                        color:'#555',cursor:'pointer',fontSize:'1.1rem',flexShrink:0,
+                        WebkitTapHighlightColor:'transparent'}}
+                      title="Delete">✕</button>
+                  </div>
+                ))}
               </div>
             ))}
           </>
@@ -841,15 +959,29 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
             {!loading && exercises.length===0 && (
               <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.1rem'}}>No saved exercises yet</div>
             )}
-            {exercises.map(ex=>(
-              <div key={ex.id} onClick={()=>onLoadExercise(ex)}
-                style={{padding:'16px 14px',borderBottom:`1px solid ${C.bord}`,cursor:'pointer'}}
+            {exercises
+              .filter(ex=>!q||(ex.doc_name||'').toLowerCase().includes(q)||(ex.instrument||'').toLowerCase().includes(q))
+              .map(ex=>(
+              <div key={ex.id}
+                style={{display:'flex',alignItems:'center',borderBottom:`1px solid ${C.bord}`,
+                  background:'transparent',transition:'background 0.1s'}}
                 onMouseEnter={e=>e.currentTarget.style.background=C.panel}
                 onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',letterSpacing:'0.08em',color:C.cream}}>{ex.doc_name||'Untitled'}</div>
-                <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.muted,marginTop:4}}>
-                  {[ex.composer,ex.instrument,ex.grouping,ex.key].filter(Boolean).join(' · ')}
+                <div onClick={()=>onLoadExercise(ex)}
+                  style={{flex:1,padding:'14px 14px',cursor:'pointer',minWidth:0}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
+                    letterSpacing:'0.08em',color:C.cream}}>{ex.doc_name||'Untitled'}</div>
+                  <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+                    color:C.muted,marginTop:3}}>
+                    {[ex.instrument,ex.grouping].filter(Boolean).join(' · ')}
+                  </div>
                 </div>
+                <button
+                  onClick={e=>{e.stopPropagation();setConfirmDel({type:'exercise',id:ex.id,title:ex.doc_name||'Untitled',...ex});}}
+                  style={{padding:'14px 16px',background:'none',border:'none',
+                    color:'#555',cursor:'pointer',fontSize:'1.1rem',flexShrink:0,
+                    WebkitTapHighlightColor:'transparent'}}
+                  title="Delete">✕</button>
               </div>
             ))}
           </>
@@ -1046,23 +1178,22 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
     setAttaching(ex.id);
     setAttachError(null);
     try {
-      const res = await sbPatch(
-        `/rest/v1/exercises?id=eq.${ex.id}`,
-        { piece_id: piece?.id||null, score_page: tapPos?.page??null, score_y: tapPos?.y??null }
-      );
+      const payload = { piece_id: piece?.id||null, score_page: tapPos?.page??null, score_y: tapPos?.y??null };
+      console.log('ATTACH payload:', payload, 'for id:', ex.id);
+      const res = await sbPatch(`/rest/v1/exercises?id=eq.${ex.id}`, payload);
+      const body = await res.text();
+      console.log('ATTACH response:', res.status, res.statusText, body);
       if(!res.ok) {
-        const body = await res.text();
-        console.error('Attach failed:', res.status, body);
-        setAttachError(`Failed (${res.status}) — check that score_page, score_y, piece_id columns exist in Supabase.`);
+        setAttachError(`Error ${res.status}: ${body || res.statusText}`);
         setAttaching(null);
         return;
       }
       // Confirmed success — move from unlocated → nearby
-      const updated = {...ex, piece_id: piece?.id||null, score_page: tapPos?.page??null, score_y: tapPos?.y??null};
+      const updated = {...ex, ...payload};
       setUnlocated(prev => prev.filter(e => e.id !== ex.id));
       setNearby(prev => [updated, ...prev]);
     } catch(e) {
-      setAttachError('Network error — could not attach.');
+      setAttachError('Network error: ' + e.message);
       console.error('Attach error', e);
     }
     setAttaching(null);
@@ -1193,85 +1324,6 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
               </div>
             )}
 
-            {/* Unlocated exercises */}
-            {!loading && unlocated.length > 0 && (
-              <>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
-                  letterSpacing:'0.18em',color:C.muted,padding:'12px 4px 0',
-                  borderTop:`1px solid ${C.bord}`,marginTop:4}}>
-                  UNLOCATED EXERCISES
-                </div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                  fontSize:'0.9rem',color:C.muted,padding:'0 4px 4px',lineHeight:1.4}}>
-                  These have no score location attached. Tap "Attach here" to link one to this spot, or open it directly.
-                </div>
-                {attachError && (
-                  <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
-                    color:'#e57373',padding:'6px 8px',background:'rgba(229,53,53,0.1)',
-                    border:'1px solid rgba(229,53,53,0.3)'}}>
-                    {attachError}
-                  </div>
-                )}
-                {unlocated.map(ex=>(
-                  <div key={ex.id} style={{position:'relative',border:`1px solid ${C.bord}`,
-                    background:C.panel,display:'flex',flexDirection:'column',gap:6,padding:'14px 46px 14px 16px'}}>
-                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
-                      letterSpacing:'0.08em',color:C.cream}}>
-                      {ex.doc_name||'Untitled Exercise'}
-                    </div>
-                    <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.82rem',color:C.muted}}>
-                      {[ex.grouping, ex.instrument].filter(Boolean).join(' · ')}
-                      {ex.notes ? ` · ${ex.notes.split(',').filter(Boolean).length} notes` : ''}
-                    </div>
-                    <div style={{display:'flex',gap:8,marginTop:2}}>
-                      <button onClick={()=>attachToSpot(ex)} disabled={attaching===ex.id}
-                        style={{background:'#1a2a1a',border:`1px solid #3a6a3a`,color:'#7ec87e',
-                          padding:'5px 12px',fontFamily:"'Bebas Neue',sans-serif",
-                          fontSize:'0.8rem',letterSpacing:'0.1em',cursor:'pointer',
-                          WebkitTapHighlightColor:'transparent',
-                          opacity:attaching===ex.id?0.6:1}}>
-                        {attaching===ex.id ? 'ATTACHING…' : '📍 ATTACH TO THIS SPOT'}
-                      </button>
-                      <button onClick={()=>onRV(ex)}
-                        style={{background:'none',border:`1px solid ${C.bord}`,color:C.muted,
-                          padding:'5px 12px',fontFamily:"'Bebas Neue',sans-serif",
-                          fontSize:'0.8rem',letterSpacing:'0.1em',cursor:'pointer',
-                          WebkitTapHighlightColor:'transparent'}}>
-                        OPEN
-                      </button>
-                    </div>
-                    {/* Delete */}
-                    {confirmDelete !== ex.id ? (
-                      <button onClick={e=>{e.stopPropagation();setConfirmDelete(ex.id);}}
-                        style={{position:'absolute',top:10,right:10,background:'none',
-                          border:`1px solid #444`,color:'#888',width:28,height:28,
-                          borderRadius:4,cursor:'pointer',fontSize:'0.9rem',
-                          display:'flex',alignItems:'center',justifyContent:'center',
-                          WebkitTapHighlightColor:'transparent'}}>✕</button>
-                    ) : (
-                      <div style={{position:'absolute',inset:0,background:'rgba(20,10,8,0.95)',
-                        display:'flex',alignItems:'center',justifyContent:'center',gap:10,padding:'0 14px'}}>
-                        <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
-                          letterSpacing:'0.1em',color:'#e57373',flex:1}}>DELETE?</span>
-                        <button onClick={e=>{e.stopPropagation();deleteExercise(ex.id);}}
-                          disabled={deleting}
-                          style={{background:'#e53535',border:'none',color:'white',
-                            padding:'6px 14px',fontFamily:"'Bebas Neue',sans-serif",
-                            fontSize:'0.85rem',letterSpacing:'0.1em',cursor:'pointer'}}>
-                          {deleting?'…':'DELETE'}
-                        </button>
-                        <button onClick={e=>{e.stopPropagation();setConfirmDelete(null);}}
-                          style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
-                            padding:'6px 12px',fontFamily:"'Bebas Neue',sans-serif",
-                            fontSize:'0.85rem',letterSpacing:'0.1em',cursor:'pointer'}}>
-                          CANCEL
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </>
-            )}
           </div>
         )}
       </div>
