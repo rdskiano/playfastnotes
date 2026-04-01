@@ -576,7 +576,6 @@ export default function App() {
           onBack={()=>{ setLocateEx(null); setScreen(locateEx?'library':'library'); }}
           onTapPassage={async (pos)=>{
             if(locateEx) {
-              // Locate mode: patch exercise, wait for confirmation
               setTapPos(pos);
               try {
                 const res = await sbPatch(`/rest/v1/exercises?id=eq.${locateEx.id}`,{
@@ -584,14 +583,22 @@ export default function App() {
                   score_page: pos.page,
                   score_y: pos.y,
                 });
-                if(res.ok) {
-                  setLocateResult({status:'ok', exId: locateEx.id});
-                } else {
+                if(!res.ok) {
                   const body = await res.text();
                   setLocateResult({status:'fail', msg:`Error ${res.status}: ${body||res.statusText}`});
+                } else {
+                  // Verify the data actually saved (Supabase silently ignores missing columns)
+                  const vr = await sbGet(`/rest/v1/exercises?id=eq.${locateEx.id}&select=score_page,score_y`);
+                  const rows = await vr.json();
+                  const saved = rows?.[0];
+                  if(saved && (saved.score_page != null || saved.score_y != null)) {
+                    setLocateResult({status:'ok', exId: locateEx.id});
+                  } else {
+                    setLocateResult({status:'fail', msg:'Columns missing in Supabase — location was not saved.'});
+                  }
                 }
               } catch(e) {
-                setLocateResult({status:'fail', msg:'Network error — could not save location.'});
+                setLocateResult({status:'fail', msg:'Network error: ' + e.message});
               }
               setLocateEx(null);
               setScreen('library');
@@ -750,14 +757,13 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
   useEffect(()=>{
     if(!locateResult) return;
     if(locateResult.status==='ok') {
-      // Remove the located exercise from local list
-      setExercises(prev=>prev.filter(e=>e.id!==locateResult.exId));
-      setLocateMsg({ok:true, text:'Exercise located successfully!'});
+      setLocateMsg({ok:true, text:'Exercise located — it will now appear when you tap that spot in the score.'});
+      loadAll(); // re-fetch so the filter removes it cleanly
     } else {
       setLocateMsg({ok:false, text:locateResult.msg||'Failed to save location.'});
     }
     onLocateResultClear();
-    const t = setTimeout(()=>setLocateMsg(null), 4000);
+    const t = setTimeout(()=>setLocateMsg(null), 6000);
     return ()=>clearTimeout(t);
   },[locateResult]);
   const fileRef = useRef();
@@ -804,7 +810,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
   const openLocate = async (ex) => {
     // If exercise already has a piece_id, open that piece directly
     if(ex.piece_id) {
-      const linked = pieces.find(p=>p.id===ex.piece_id);
+      const linked = pieces.find(p=>String(p.id)===String(ex.piece_id));
       if(linked) { openLocateWithPiece(ex, linked); return; }
     }
     // Otherwise show piece picker
@@ -912,26 +918,30 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
 
       {/* Locate result toast */}
       {locateMsg && (
-        <div style={{padding:'10px 16px',flexShrink:0,
-          background:locateMsg.ok?'rgba(61,176,106,0.15)':'rgba(229,53,53,0.15)',
+        <div style={{padding:'12px 16px',flexShrink:0,
+          background:locateMsg.ok?'rgba(61,176,106,0.15)':'rgba(229,53,53,0.18)',
           borderBottom:`1px solid ${locateMsg.ok?'#3db06a':'#e53535'}`,
-          display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
-          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
-            letterSpacing:'0.12em',color:locateMsg.ok?'#3db06a':'#e57373'}}>
-            {locateMsg.ok ? '✓ ' : '⚠ '}{locateMsg.text}
-          </span>
+          display:'flex',flexDirection:'column',gap:8}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+              letterSpacing:'0.12em',color:locateMsg.ok?'#3db06a':'#e57373'}}>
+              {locateMsg.ok ? '✓ ' : '⚠ '}{locateMsg.text}
+            </span>
+            <button onClick={()=>setLocateMsg(null)}
+              style={{background:'none',border:'none',color:'#888',cursor:'pointer',
+                fontSize:'1rem',flexShrink:0,padding:'0 4px'}}>✕</button>
+          </div>
           {!locateMsg.ok && (
-            <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.72rem',
-              color:'#e57373',maxWidth:260,lineHeight:1.3}}>
-              Run in Supabase SQL editor:<br/>
-              <code>alter table exercises add column if not exists piece_id text;<br/>
-              alter table exercises add column if not exists score_page integer;<br/>
-              alter table exercises add column if not exists score_y float8;</code>
+            <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.78rem',
+              color:'#e5a835',lineHeight:1.6,background:'rgba(0,0,0,0.3)',padding:'8px 10px'}}>
+              The exercises table is missing required columns. Run this in your Supabase SQL editor:<br/>
+              <span style={{color:'#fff'}}>
+                alter table exercises add column if not exists piece_id text;<br/>
+                alter table exercises add column if not exists score_page integer;<br/>
+                alter table exercises add column if not exists score_y float8;
+              </span>
             </div>
           )}
-          <button onClick={()=>setLocateMsg(null)}
-            style={{background:'none',border:'none',color:'#888',cursor:'pointer',
-              fontSize:'1rem',flexShrink:0,padding:'0 4px'}}>✕</button>
         </div>
       )}
 
@@ -1346,7 +1356,7 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
           return;
         }
         // Has location — check if it matches this tap
-        if(ex.piece_id && piece?.id && ex.piece_id !== piece.id) return;
+        if(ex.piece_id && piece?.id && String(ex.piece_id) !== String(piece.id)) return;
         const samePage = parseInt(ex.score_page) === tapPos?.page;
         const closeY = Math.abs(parseFloat(ex.score_y) - (tapPos?.y||0)) < 0.20;
         if(samePage && closeY) nb.push(ex);
