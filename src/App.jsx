@@ -1784,20 +1784,40 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
   // ── Exercise display ───────────────────────────────────────────────
   // Large screen: all exercises rendered at once, each with its own play button
   // Small screen: one at a time with nav arrows
+  const handleRVDone = () => {
+    try {
+      const prof = profile || JSON.parse(localStorage.getItem('murProfile')||'{}');
+      if(prof.email) {
+        sbPost('/rest/v1/practice_log', {
+          user_email: prof.email,
+          piece_id: piece?.id||null,
+          strategy: 'RV',
+          grouping: g2s(activeGroup),
+          n_notes: selNotes.length,
+          doc_name: docName||null,
+          event: 'completed',
+        }).catch(()=>{});
+      }
+    } catch(e){}
+    setGenerated(false);
+  };
+
   const ExercisePanelLarge = generated && exercises.length>0 && (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
         padding:'6px 14px',flexShrink:0,background:C.ink,borderBottom:`1px solid ${C.bord}`}}>
+        <Btn onClick={()=>setGenerated(false)} style={{fontSize:'0.85rem',padding:'7px 14px'}}>
+          ← EDIT PASSAGE
+        </Btn>
         <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted}}>
           {exercises.length} patterns
         </div>
-        <Btn onClick={()=>setGenerated(false)} style={{fontSize:'0.75rem',padding:'5px 12px'}}>
-          ← EDIT PASSAGE
-        </Btn>
-        {isLoadedExercise && <Btn onClick={()=>{setShowAttach(s=>!s);if(!showAttach)loadAttachPieces();}}
-          style={{fontSize:'0.75rem',padding:'5px 12px',borderColor:C.bord2}}>
-          {showAttach?'CANCEL':'ATTACH SCORE'}
-        </Btn>}
+        <button onClick={handleRVDone} style={{
+          background:C.accent,border:`1px solid ${C.accent}`,
+          color:'white',padding:'7px 16px',cursor:'pointer',
+          fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+          letterSpacing:'0.1em',flexShrink:0,WebkitTapHighlightColor:'transparent',
+        }}>DONE ✓</button>
       </div>
       {showAttach && (
         <div style={{flexShrink:0,background:C.panel,borderBottom:`1px solid ${C.bord}`,padding:'8px 14px'}}>
@@ -1821,26 +1841,38 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
   const ExercisePanelSmall = generated && exercises.length>0 && (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        padding:'6px 14px',flexShrink:0,background:C.ink,borderTop:`1px solid ${C.bord}`}}>
-        <button onClick={()=>setExIdx(i=>Math.max(0,i-1))} disabled={exIdx===0}
+        padding:'6px 10px',flexShrink:0,background:C.ink,borderTop:`1px solid ${C.bord}`}}>
+        <button onClick={()=>setGenerated(false)}
           style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
-            width:36,height:36,cursor:'pointer',fontSize:'1rem',opacity:exIdx===0?0.35:1}}>&#8592;</button>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted}}>
-            {exIdx+1} / {exercises.length}
-          </span>
-          <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.7rem',color:C.muted}}>
-            {exercises[exIdx]?.pat.timeSig}
-          </span>
-          <button onClick={()=>playExerciseAt(exIdx)}
-            style={{background:playingIdx===exIdx?C.accent:'none',border:`1px solid ${playingIdx===exIdx?C.accent:C.bord}`,
-              color:'white',width:30,height:30,borderRadius:'50%',cursor:'pointer',fontSize:'0.75rem'}}>
-            {playingIdx===exIdx?'\u25A0':'\u25B6'}
-          </button>
+            padding:'5px 10px',cursor:'pointer',fontFamily:"'Bebas Neue',sans-serif",
+            fontSize:'0.8rem',letterSpacing:'0.1em',flexShrink:0,WebkitTapHighlightColor:'transparent'}}>
+          ← EDIT
+        </button>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <button onClick={()=>setExIdx(i=>Math.max(0,i-1))} disabled={exIdx===0}
+            style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
+              width:36,height:36,cursor:'pointer',fontSize:'1rem',opacity:exIdx===0?0.35:1}}>&#8592;</button>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted}}>
+              {exIdx+1} / {exercises.length}
+            </span>
+            <button onClick={()=>playExerciseAt(exIdx)}
+              style={{background:playingIdx===exIdx?C.accent:'none',border:`1px solid ${playingIdx===exIdx?C.accent:C.bord}`,
+                color:'white',width:32,height:32,borderRadius:'50%',cursor:'pointer',fontSize:'0.85rem',
+                display:'flex',alignItems:'center',justifyContent:'center'}}>
+              {playingIdx===exIdx?'\u25A0':'\u25B6'}
+            </button>
+          </div>
+          <button onClick={()=>setExIdx(i=>Math.min(exercises.length-1,i+1))} disabled={exIdx===exercises.length-1}
+            style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
+              width:36,height:36,cursor:'pointer',fontSize:'1rem',opacity:exIdx===exercises.length-1?0.35:1}}>&#8594;</button>
         </div>
-        <button onClick={()=>setExIdx(i=>Math.min(exercises.length-1,i+1))} disabled={exIdx===exercises.length-1}
-          style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
-            width:36,height:36,cursor:'pointer',fontSize:'1rem',opacity:exIdx===exercises.length-1?0.35:1}}>&#8594;</button>
+        <button onClick={handleRVDone} style={{
+          background:C.accent,border:`1px solid ${C.accent}`,
+          color:'white',padding:'5px 12px',cursor:'pointer',
+          fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+          letterSpacing:'0.1em',flexShrink:0,WebkitTapHighlightColor:'transparent',
+        }}>DONE ✓</button>
       </div>
       <div ref={exDivRef} style={{background:'white',flex:'1 1 0',overflowY:'auto',padding:'8px 12px'}} />
     </div>
