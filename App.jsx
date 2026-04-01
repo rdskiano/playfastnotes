@@ -525,6 +525,8 @@ export default function App() {
   const [sessionMode,setSessionMode]   = useState('massed');
   const [tapPos,setTapPos]             = useState(null);
   const [showOverlay,setShowOverlay]   = useState(false);
+  const [locateEx,setLocateEx]         = useState(null);
+  const [locateRefresh,setLocateRefresh] = useState(0);
   const N = markers.length;
 
   const saveProf = p => { setProfile(p); setProfileState(p); };
@@ -542,7 +544,14 @@ export default function App() {
       {screen==='library' && (
         <LibraryScreen
           profile={profile}
+          refreshKey={locateRefresh}
           onSelectRepertoire={(p,imgs)=>{
+            setPiece(p);setPageImages(imgs);
+            setMarkers([]);setCurrentPage(0);
+            setScreen('score');
+          }}
+          onLocateReady={(ex,p,imgs)=>{
+            setLocateEx(ex);
             setPiece(p);setPageImages(imgs);
             setMarkers([]);setCurrentPage(0);
             setScreen('score');
@@ -562,6 +571,17 @@ export default function App() {
           currentPage={currentPage} setCurrentPage={setCurrentPage}
           sessionMode={sessionMode} setSessionMode={setSessionMode}
           tapPos={tapPos} showOverlay={showOverlay}
+          locateEx={locateEx}
+          onLocateTap={async (pos)=>{
+            try {
+              const payload={piece_id:piece?.id||null,score_page:pos.page,score_y:pos.y};
+              await sbPatch(`/rest/v1/exercises?id=eq.${locateEx.id}&user_email=eq.${encodeURIComponent(profile.email)}`,payload);
+            } catch(e){console.error('Locate PATCH failed',e);}
+            setLocateEx(null);
+            setLocateRefresh(r=>r+1);
+            setScreen('library');
+          }}
+          onLocateCancel={()=>{setLocateEx(null);setScreen('library');}}
           onBack={()=>setScreen('library')}
           onTapPassage={(pos)=>{
             setTapPos(pos);
@@ -696,7 +716,7 @@ function SignInScreen({ onSignIn }) {
 /* ═══════════════════════════════════════════════════════════════════════
    LIBRARY
 ═══════════════════════════════════════════════════════════════════════ */
-function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut }) {
+function LibraryScreen({ profile, refreshKey, onSelectRepertoire, onLocateReady, onLoadExercise, onSignOut }) {
   const [tab,setTab]             = useState('pieces');
   const [pieces,setPieces]       = useState([]);
   const [exercises,setExercises] = useState([]);
@@ -708,12 +728,16 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
   const [uploading,setUploading] = useState(false);
   const [uploadMsg,setUploadMsg] = useState('');
   const [search,setSearch]       = useState('');
-  const [confirmDel,setConfirmDel] = useState(null); // {type:'piece'|'exercise', id, title}
+  const [confirmDel,setConfirmDel] = useState(null);
   const [deleting,setDeleting]   = useState(false);
+  // Locate flow
+  const [locateTarget,setLocateTarget]     = useState(null);  // exercise being located
+  const [locatePieces,setLocatePieces]     = useState([]);
+  const [locatePiecesLoading,setLocatePiecesLoading] = useState(false);
   const fileRef = useRef();
   const INSTRUMENTS = ['Flute','Oboe','Clarinet','Bassoon','Saxophone','Horn','Trumpet','Trombone','Tuba','Violin','Viola','Cello','Double Bass','Harp','Piano','Percussion','Voice','Other'];
 
-  useEffect(()=>{ loadAll(); },[tab]);
+  useEffect(()=>{ loadAll(); },[tab, refreshKey]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -750,6 +774,43 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
     } catch(e) { console.error('Delete failed', e); }
     setConfirmDel(null);
     setDeleting(false);
+  };
+
+  const handleLocate = async (ex) => {
+    setLocateTarget(ex);
+    if(locatePieces.length === 0) {
+      setLocatePiecesLoading(true);
+      try {
+        const r = await sbGet(`/rest/v1/pieces?user_email=eq.${encodeURIComponent(profile.email)}&order=composer.asc,title.asc`);
+        setLocatePieces(await r.json() || []);
+      } catch { setLocatePieces([]); }
+      setLocatePiecesLoading(false);
+    }
+  };
+
+  const openPieceForLocate = async (p) => {
+    const ex = locateTarget;
+    setLocateTarget(null);
+    if(p.file_type==='image'){
+      onLocateReady(ex, p, [p.file_url]);
+    } else {
+      try {
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        if(!pdfjsLib) throw new Error('PDF.js not loaded');
+        pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const pdf = await pdfjsLib.getDocument(p.file_url).promise;
+        const imgs=[];
+        for(let pg=1;pg<=pdf.numPages;pg++){
+          const page=await pdf.getPage(pg);
+          const vp=page.getViewport({scale:2});
+          const canvas=document.createElement('canvas');
+          canvas.width=vp.width;canvas.height=vp.height;
+          await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+          imgs.push(canvas.toDataURL('image/png'));
+        }
+        onLocateReady(ex, p, imgs);
+      } catch { onLocateReady(ex, p, [p.file_url]); }
+    }
   };
 
   const uploadFile = async file => {
@@ -957,11 +1018,17 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
         {tab==='exercises' && (
           <>
             {loading && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:C.muted,textAlign:'center',padding:40}}>Loading...</div>}
-            {!loading && exercises.length===0 && (
-              <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.1rem'}}>No saved exercises yet</div>
+            {!loading && exercises.filter(ex=>ex.score_page==null&&ex.score_y==null).length===0 && (
+              <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.1rem'}}>
+                {exercises.length===0 ? 'No saved exercises yet' : 'All exercises are located on scores ✓'}
+              </div>
             )}
             {exercises
-              .filter(ex=>!q||(ex.doc_name||'').toLowerCase().includes(q)||(ex.instrument||'').toLowerCase().includes(q))
+              .filter(ex=>{
+                const unlocated = ex.score_page==null && ex.score_y==null;
+                const matchesSearch = !q||(ex.doc_name||'').toLowerCase().includes(q)||(ex.instrument||'').toLowerCase().includes(q);
+                return unlocated && matchesSearch;
+              })
               .map(ex=>(
               <div key={ex.id}
                 style={{display:'flex',alignItems:'center',borderBottom:`1px solid ${C.bord}`,
@@ -977,6 +1044,13 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
                     {[ex.instrument,ex.grouping].filter(Boolean).join(' · ')}
                   </div>
                 </div>
+                {/* Locate button */}
+                <button
+                  onClick={e=>{e.stopPropagation();handleLocate(ex);}}
+                  title="Attach to a score location"
+                  style={{padding:'14px 12px',background:'none',border:'none',
+                    color:C.gold,cursor:'pointer',fontSize:'1.1rem',flexShrink:0,
+                    WebkitTapHighlightColor:'transparent'}}>📍</button>
                 <button
                   onClick={e=>{e.stopPropagation();setConfirmDel({type:'exercise',id:ex.id,title:ex.doc_name||'Untitled',...ex});}}
                   style={{padding:'14px 16px',background:'none',border:'none',
@@ -985,6 +1059,60 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
                   title="Delete">✕</button>
               </div>
             ))}
+
+            {/* Piece picker sheet — appears when LOCATE is tapped */}
+            {locateTarget && (
+              <>
+                <div onClick={()=>setLocateTarget(null)} style={{
+                  position:'fixed',inset:0,zIndex:400,background:'rgba(0,0,0,0.55)'}}/>
+                <div style={{
+                  position:'fixed',left:0,right:0,bottom:0,zIndex:401,
+                  background:C.ink,borderTop:`3px solid ${C.gold}`,
+                  borderRadius:'12px 12px 0 0',maxHeight:'65vh',overflowY:'auto',
+                  boxShadow:'0 -8px 40px rgba(0,0,0,0.6)',
+                  WebkitOverflowScrolling:'touch'}}>
+                  <div style={{display:'flex',justifyContent:'center',padding:'10px 0 0'}}>
+                    <div style={{width:40,height:4,borderRadius:2,background:C.bord2}}/>
+                  </div>
+                  <div style={{padding:'8px 16px 12px'}}>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+                      letterSpacing:'0.18em',color:C.gold,padding:'4px 4px 10px',
+                      borderBottom:`1px solid ${C.bord}`}}>
+                      WHICH PIECE? — {(locateTarget.doc_name||'Untitled').toUpperCase()}
+                    </div>
+                    {locatePiecesLoading && (
+                      <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',
+                        color:C.muted,padding:'16px 4px'}}>Loading repertoire…</div>
+                    )}
+                    {!locatePiecesLoading && locatePieces.length===0 && (
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                        fontSize:'1rem',color:C.muted,padding:'16px 4px'}}>No pieces in your library yet.</div>
+                    )}
+                    {locatePieces.map(p=>(
+                      <button key={p.id} onClick={()=>openPieceForLocate(p)}
+                        style={{display:'flex',flexDirection:'column',gap:2,
+                          width:'100%',textAlign:'left',padding:'14px 4px',
+                          background:'none',border:'none',
+                          borderBottom:`1px solid ${C.bord}`,cursor:'pointer',
+                          WebkitTapHighlightColor:'transparent'}}
+                        onMouseEnter={e=>e.currentTarget.style.background=C.panel}
+                        onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
+                          letterSpacing:'0.08em',color:C.cream}}>{p.title||'Untitled'}</div>
+                        {p.composer && <div style={{fontFamily:"'Cormorant Garamond',serif",
+                          fontStyle:'italic',fontSize:'0.9rem',color:C.muted}}>{p.composer}</div>}
+                      </button>
+                    ))}
+                    <button onClick={()=>setLocateTarget(null)}
+                      style={{width:'100%',padding:'14px 4px',background:'none',border:'none',
+                        fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+                        letterSpacing:'0.12em',color:C.muted,cursor:'pointer',marginTop:4}}>
+                      CANCEL
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
@@ -996,7 +1124,9 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onSignOut 
    SCORE VIEW — home base for a repertoire item
 ═══════════════════════════════════════════════════════════════════════ */
 function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
-  sessionMode, setSessionMode, tapPos, showOverlay, onBack, onTapPassage }) {
+  sessionMode, setSessionMode, tapPos, showOverlay,
+  locateEx, onLocateTap, onLocateCancel,
+  onBack, onTapPassage }) {
 
   const land = useOrientation();
   const totalPages = pageImages.length;
@@ -1009,6 +1139,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top)  / rect.height;
     const page = img.dataset.page ? parseInt(img.dataset.page) : currentPage;
+    if(locateEx) { onLocateTap({ page, x, y }); return; }
     onTapPassage({ page, x, y });
   };
 
@@ -1026,9 +1157,9 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   return (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <TopBar
-        left={<BackBtn onClick={onBack} />}
-        center={piece?.title||'SCORE'}
-        right={
+        left={<BackBtn onClick={locateEx ? onLocateCancel : onBack} />}
+        center={locateEx ? 'LOCATE EXERCISE' : (piece?.title||'SCORE')}
+        right={locateEx ? null :
           <div style={{display:'flex',gap:4}}>
             {modeBtn('massed','MASSED')}
             {modeBtn('interleaved','INTERLEAVED')}
@@ -1036,14 +1167,44 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         }
       />
 
-      {/* Instruction */}
+      {/* Instruction / locate banner */}
       <div style={{padding:'6px 16px',flexShrink:0,borderBottom:`1px solid ${C.bord}`,
-        display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-          fontSize:16,color:C.cream}}>
-          Tap a passage to begin working
-        </div>
-        {!showTwo && totalPages>1 && (
+        display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,
+        background: locateEx ? '#1a1005' : 'transparent'}}>
+        {locateEx ? (
+          <div style={{display:'flex',alignItems:'center',gap:10,flex:1}}>
+            <span style={{fontSize:'1.2rem'}}>📍</span>
+            <div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.95rem',
+                letterSpacing:'0.15em',color:C.gold}}>
+                TAP WHERE THIS EXERCISE LIVES
+              </div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                fontSize:'0.95rem',color:C.cream,opacity:0.8}}>
+                {locateEx.doc_name||'Untitled'}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+              fontSize:16,color:C.cream}}>
+              Tap a passage to begin working
+            </div>
+            {!showTwo && totalPages>1 && (
+              <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
+                <Btn onClick={()=>setCurrentPage(p=>Math.max(0,p-1))}
+                  disabled={currentPage===0} style={{padding:'4px 12px',fontSize:'0.8rem'}}>← PAGE</Btn>
+                <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.cream}}>
+                  {currentPage+1}/{totalPages}
+                </span>
+                <Btn onClick={()=>setCurrentPage(p=>Math.min(totalPages-1,p+1))}
+                  disabled={currentPage===totalPages-1} style={{padding:'4px 12px',fontSize:'0.8rem'}}>PAGE →</Btn>
+              </div>
+            )}
+          </>
+        )}
+        {locateEx && totalPages>1 && (
           <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
             <Btn onClick={()=>setCurrentPage(p=>Math.max(0,p-1))}
               disabled={currentPage===0} style={{padding:'4px 12px',fontSize:'0.8rem'}}>← PAGE</Btn>
