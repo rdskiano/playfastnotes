@@ -959,18 +959,22 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
     setPanel('rv');
     setLoading(true);
     try {
-      // Fetch exercises for this piece, then filter by proximity to tap
-      const url = piece?.id
-        ? `/rest/v1/exercises?user_email=eq.${encodeURIComponent(profile.email)}&piece_id=eq.${piece.id}&order=created_at.desc`
-        : `/rest/v1/exercises?user_email=eq.${encodeURIComponent(profile.email)}&order=created_at.desc&limit=20`;
-      const r = await sbGet(url);
+      // Fetch all user exercises — filter client-side for flexibility
+      // (piece_id/score_page/score_y may not exist on older rows)
+      const r = await sbGet(
+        `/rest/v1/exercises?user_email=eq.${encodeURIComponent(profile.email)}&order=created_at.desc&limit=50`
+      );
       const all = await r.json() || [];
-      // Filter to exercises near the tap position (±15% Y, same page)
+      // Filter: same piece (if we have piece_id) AND same page AND close Y
       const nearby = all.filter(ex => {
-        if(!tapPos) return true;
-        const samePage = ex.score_page == null || ex.score_page === tapPos.page;
-        const closeY = ex.score_y == null || Math.abs(ex.score_y - tapPos.y) < 0.15;
-        return samePage && closeY;
+        // If this exercise has a piece_id, it must match
+        if(ex.piece_id && piece?.id && ex.piece_id !== piece.id) return false;
+        // Page must match (or exercise has no page stored yet)
+        const samePage = ex.score_page == null || parseInt(ex.score_page) === tapPos?.page;
+        if(!samePage) return false;
+        // Y within ±20% (generous to account for slight re-taps)
+        const closeY = ex.score_y == null || Math.abs(parseFloat(ex.score_y) - (tapPos?.y||0)) < 0.20;
+        return closeY;
       });
       setExercises(nearby);
     } catch { setExercises([]); }
@@ -1007,9 +1011,9 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
         </div>
 
         {panel === 'strategies' && (
-          <div style={{padding:'8px 16px 32px',display:'flex',flexDirection:'column',gap:10}}>
-            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.7rem',
-              letterSpacing:'0.22em',color:C.muted,padding:'4px 4px 8px',
+          <div style={{padding:'8px 16px 32px',display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+              letterSpacing:'0.18em',color:C.muted,padding:'4px 4px 10px',
               borderBottom:`1px solid ${C.bord}`}}>
               CHOOSE A PRACTICE STRATEGY
             </div>
@@ -1019,10 +1023,10 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
               onClick={onICU}
               onMouseEnter={e=>e.currentTarget.style.background=C.panel}
               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.4rem',
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',
                 letterSpacing:'0.12em',color:C.accent}}>INTERLEAVED CLICK-UP</div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                fontSize:'0.95rem',color:C.cream,lineHeight:1.5}}>
+                fontSize:'1.05rem',color:C.cream,lineHeight:1.5}}>
                 Build speed gradually — add one unit at a time, cycling through tempo increments.
               </div>
             </button>
@@ -1032,10 +1036,10 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
               onClick={openRV}
               onMouseEnter={e=>e.currentTarget.style.background=C.panel}
               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.4rem',
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',
                 letterSpacing:'0.12em',color:C.gold}}>RHYTHMIC VARIATION</div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                fontSize:'0.95rem',color:C.cream,lineHeight:1.5}}>
+                fontSize:'1.05rem',color:C.cream,lineHeight:1.5}}>
                 Practice your passage in every rhythm pattern — a complete systematic workout.
               </div>
             </button>
@@ -1043,16 +1047,16 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
         )}
 
         {panel === 'rv' && (
-          <div style={{padding:'8px 16px 32px',display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{padding:'8px 16px 32px',display:'flex',flexDirection:'column',gap:12}}>
             <div style={{display:'flex',alignItems:'center',gap:10,
               padding:'4px 4px 10px',borderBottom:`1px solid ${C.bord}`}}>
               <button onClick={()=>setPanel('strategies')} style={{
                 background:'none',border:'none',color:C.muted,cursor:'pointer',
-                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
                 letterSpacing:'0.1em',padding:'2px 0',
               }}>← BACK</button>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.7rem',
-                letterSpacing:'0.22em',color:C.muted,flex:1}}>RHYTHMIC VARIATION</div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+                letterSpacing:'0.18em',color:C.muted,flex:1}}>RHYTHMIC VARIATION</div>
             </div>
 
             {/* Create new */}
@@ -1060,21 +1064,21 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
               onClick={()=>onRV(null)}
               onMouseEnter={e=>e.currentTarget.style.background=C.panel}
               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
                 letterSpacing:'0.12em',color:C.gold}}>+ CREATE NEW EXERCISE</div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                fontSize:'0.9rem',color:C.muted}}>Enter notes and generate a new set of patterns</div>
+                fontSize:'1rem',color:C.muted}}>Enter notes and generate a new set of patterns</div>
             </button>
 
             {/* Nearby saved exercises */}
             {loading && (
-              <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+              <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.9rem',
                 color:C.muted,padding:'12px 4px'}}>Loading saved exercises…</div>
             )}
             {!loading && exercises.length > 0 && (
               <>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
-                  letterSpacing:'0.2em',color:C.muted,padding:'4px 4px 0'}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+                  letterSpacing:'0.18em',color:C.muted,padding:'4px 4px 0'}}>
                   SAVED EXERCISES NEAR THIS SPOT
                 </div>
                 {exercises.map(ex=>(
@@ -1083,11 +1087,11 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
                     onClick={()=>onRV(ex)}
                     onMouseEnter={e=>e.currentTarget.style.background=C.surf}
                     onMouseLeave={e=>e.currentTarget.style.background=C.panel}>
-                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.15rem',
                       letterSpacing:'0.08em',color:C.cream}}>
                       {ex.doc_name||'Untitled Exercise'}
                     </div>
-                    <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.72rem',color:C.muted}}>
+                    <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:C.muted}}>
                       {[ex.grouping, ex.instrument].filter(Boolean).join(' · ')}
                       {ex.notes ? ` · ${ex.notes.split(',').filter(Boolean).length} notes` : ''}
                     </div>
@@ -1097,7 +1101,7 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
             )}
             {!loading && exercises.length === 0 && (
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                fontSize:'0.9rem',color:C.muted,padding:'4px 4px'}}>
+                fontSize:'1rem',color:C.muted,padding:'4px 4px'}}>
                 No saved exercises near this spot yet.
               </div>
             )}
@@ -1989,17 +1993,22 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
 
   const ExercisePanelLarge = generated && exercises.length>0 && (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+      <div style={{display:'flex',alignItems:'center',gap:8,
         padding:'6px 14px',flexShrink:0,background:C.ink,borderBottom:`1px solid ${C.bord}`}}>
-        <Btn onClick={()=>setGenerated(false)} style={{fontSize:'0.85rem',padding:'7px 14px'}}>
-          ← EDIT PASSAGE
+        <Btn onClick={()=>setGenerated(false)} style={{fontSize:'0.85rem',padding:'7px 14px',flexShrink:0}}>
+          ← EDIT
         </Btn>
-        <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted}}>
-          {exercises.length} patterns
-        </div>
+        <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
+          placeholder="Name this exercise…"
+          style={{flex:1,background:C.panel,border:`1px solid ${C.bord}`,color:C.cream,
+            padding:'6px 10px',fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',outline:'none'}}/>
+        <Btn onClick={saveExercise} disabled={saving} style={{fontSize:'0.8rem',padding:'7px 12px',flexShrink:0,borderColor:C.bord2}}>
+          {saving?'SAVING…':'SAVE'}
+        </Btn>
+        {saveMsg && <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.gold,flexShrink:0}}>{saveMsg}</span>}
         <button onClick={handleRVDone} style={{
           background:C.accent,border:`1px solid ${C.accent}`,
-          color:'white',padding:'7px 16px',cursor:'pointer',
+          color:'white',padding:'7px 14px',cursor:'pointer',
           fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
           letterSpacing:'0.1em',flexShrink:0,WebkitTapHighlightColor:'transparent',
         }}>DONE ✓</button>
@@ -2058,6 +2067,18 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
           fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
           letterSpacing:'0.1em',flexShrink:0,WebkitTapHighlightColor:'transparent',
         }}>DONE ✓</button>
+      </div>
+      {/* Save row */}
+      <div style={{display:'flex',alignItems:'center',gap:6,padding:'6px 10px',
+        flexShrink:0,borderBottom:`1px solid ${C.bord}`,background:'#0e0c09'}}>
+        <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
+          placeholder="Name this exercise…"
+          style={{flex:1,background:C.panel,border:`1px solid ${C.bord}`,color:C.cream,
+            padding:'6px 10px',fontFamily:"'Inconsolata',monospace",fontSize:'0.9rem',outline:'none'}}/>
+        <Btn onClick={saveExercise} disabled={saving} style={{fontSize:'0.85rem',padding:'7px 14px',flexShrink:0,borderColor:C.bord2}}>
+          {saving?'SAVING…':'SAVE'}
+        </Btn>
+        {saveMsg && <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.gold,flexShrink:0}}>{saveMsg}</span>}
       </div>
       <div ref={exDivRef} style={{background:'white',flex:'1 1 0',overflowY:'auto',padding:'8px 12px'}} />
     </div>
