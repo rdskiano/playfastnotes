@@ -525,7 +525,8 @@ export default function App() {
   const [sessionMode,setSessionMode]   = useState('massed');
   const [tapPos,setTapPos]             = useState(null);
   const [showOverlay,setShowOverlay]   = useState(false);
-  const [locateEx,setLocateEx]         = useState(null); // exercise being located
+  const [locateEx,setLocateEx]         = useState(null);
+  const [locateResult,setLocateResult] = useState(null); // 'ok' | 'fail' | error string
   const N = markers.length;
 
   const saveProf = p => { setProfile(p); setProfileState(p); };
@@ -543,6 +544,8 @@ export default function App() {
       {screen==='library' && (
         <LibraryScreen
           profile={profile}
+          locateResult={locateResult}
+          onLocateResultClear={()=>setLocateResult(null)}
           onSelectRepertoire={(p,imgs)=>{
             setPiece(p);setPageImages(imgs);
             setMarkers([]);setCurrentPage(0);
@@ -571,18 +574,25 @@ export default function App() {
           sessionMode={sessionMode} setSessionMode={setSessionMode}
           locateEx={locateEx}
           onBack={()=>{ setLocateEx(null); setScreen(locateEx?'library':'library'); }}
-          onTapPassage={(pos)=>{
+          onTapPassage={async (pos)=>{
             if(locateEx) {
-              // Locate mode: patch exercise and return to library
+              // Locate mode: patch exercise, wait for confirmation
               setTapPos(pos);
-              sbPatch(`/rest/v1/exercises?id=eq.${locateEx.id}`,{
-                piece_id: piece?.id||null,
-                score_page: pos.page,
-                score_y: pos.y,
-              }).then(r=>{
-                if(r.ok) console.log('Exercise located successfully');
-                else r.text().then(b=>console.error('Locate failed:',r.status,b));
-              }).catch(e=>console.error('Locate error:',e));
+              try {
+                const res = await sbPatch(`/rest/v1/exercises?id=eq.${locateEx.id}`,{
+                  piece_id: piece?.id||null,
+                  score_page: pos.page,
+                  score_y: pos.y,
+                });
+                if(res.ok) {
+                  setLocateResult({status:'ok', exId: locateEx.id});
+                } else {
+                  const body = await res.text();
+                  setLocateResult({status:'fail', msg:`Error ${res.status}: ${body||res.statusText}`});
+                }
+              } catch(e) {
+                setLocateResult({status:'fail', msg:'Network error — could not save location.'});
+              }
               setLocateEx(null);
               setScreen('library');
             } else {
@@ -719,7 +729,7 @@ function SignInScreen({ onSignIn }) {
 /* ═══════════════════════════════════════════════════════════════════════
    LIBRARY
 ═══════════════════════════════════════════════════════════════════════ */
-function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateExercise, onSignOut }) {
+function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateExercise, onSignOut, locateResult, onLocateResultClear }) {
   const [tab,setTab]             = useState('pieces');
   const [pieces,setPieces]       = useState([]);
   const [exercises,setExercises] = useState([]);
@@ -733,7 +743,23 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
   const [search,setSearch]       = useState('');
   const [confirmDel,setConfirmDel] = useState(null); // {type:'piece'|'exercise', id, title}
   const [deleting,setDeleting]   = useState(false);
-  const [locatePicker,setLocatePicker] = useState(null); // exercise awaiting piece selection
+  const [locatePicker,setLocatePicker] = useState(null);
+  const [locateMsg,setLocateMsg]       = useState(null); // {ok:bool, text:string}
+
+  // React to locate result coming back from score screen
+  useEffect(()=>{
+    if(!locateResult) return;
+    if(locateResult.status==='ok') {
+      // Remove the located exercise from local list
+      setExercises(prev=>prev.filter(e=>e.id!==locateResult.exId));
+      setLocateMsg({ok:true, text:'Exercise located successfully!'});
+    } else {
+      setLocateMsg({ok:false, text:locateResult.msg||'Failed to save location.'});
+    }
+    onLocateResultClear();
+    const t = setTimeout(()=>setLocateMsg(null), 4000);
+    return ()=>clearTimeout(t);
+  },[locateResult]);
   const fileRef = useRef();
   const INSTRUMENTS = ['Flute','Oboe','Clarinet','Bassoon','Saxophone','Horn','Trumpet','Trombone','Tuba','Violin','Viola','Cello','Double Bass','Harp','Piano','Percussion','Voice','Other'];
 
@@ -883,6 +909,31 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
         <button style={tabStyle(tab==='pieces')} onClick={()=>{setTab('pieces');setSearch('');}}>Repertoire</button>
         <button style={tabStyle(tab==='exercises')} onClick={()=>{setTab('exercises');setSearch('');}}>Exercises</button>
       </div>
+
+      {/* Locate result toast */}
+      {locateMsg && (
+        <div style={{padding:'10px 16px',flexShrink:0,
+          background:locateMsg.ok?'rgba(61,176,106,0.15)':'rgba(229,53,53,0.15)',
+          borderBottom:`1px solid ${locateMsg.ok?'#3db06a':'#e53535'}`,
+          display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+            letterSpacing:'0.12em',color:locateMsg.ok?'#3db06a':'#e57373'}}>
+            {locateMsg.ok ? '✓ ' : '⚠ '}{locateMsg.text}
+          </span>
+          {!locateMsg.ok && (
+            <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.72rem',
+              color:'#e57373',maxWidth:260,lineHeight:1.3}}>
+              Run in Supabase SQL editor:<br/>
+              <code>alter table exercises add column if not exists piece_id text;<br/>
+              alter table exercises add column if not exists score_page integer;<br/>
+              alter table exercises add column if not exists score_y float8;</code>
+            </div>
+          )}
+          <button onClick={()=>setLocateMsg(null)}
+            style={{background:'none',border:'none',color:'#888',cursor:'pointer',
+              fontSize:'1rem',flexShrink:0,padding:'0 4px'}}>✕</button>
+        </div>
+      )}
 
       {/* Search bar */}
       <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.bord}`,flexShrink:0,background:'#0e0c09'}}>
