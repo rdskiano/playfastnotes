@@ -1274,8 +1274,8 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
       </div>
 
       {/* Score */}
-      <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex'}}>
-        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
+      <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',overflow:'hidden'}}>
+        <div style={{position:'relative',flex:1,minWidth:0,minHeight:0,overflow:'hidden'}}>
           <img data-page={currentPage} src={pageImages[currentPage]}
             onClick={handleTap}
             style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
@@ -1284,7 +1284,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             draggable={false} />
         </div>
         {showTwo && rightPage!==null && (
-          <div style={{position:'relative',flex:1,minWidth:0,
+          <div style={{position:'relative',flex:1,minWidth:0,minHeight:0,
             borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
             <img data-page={rightPage} src={pageImages[rightPage]}
               onClick={handleTap}
@@ -3060,8 +3060,8 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
         </div>
       </div>
 
-      <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',flexDirection:'row'}}>
-        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
+      <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',flexDirection:'row',overflow:'hidden'}}>
+        <div style={{position:'relative',flex:1,minWidth:0,minHeight:0,overflow:'hidden'}}>
           <img ref={imgRef} src={pageImages[currentPage]}
             onLoad={()=>{setLoaded(true);requestAnimationFrame(()=>draw());}}
             onClick={handleTap}
@@ -3072,7 +3072,7 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
           <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none'}} />
         </div>
         {showTwoPages&&rightPage!==null&&(
-          <div style={{position:'relative',flex:1,minWidth:0,borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
+          <div style={{position:'relative',flex:1,minWidth:0,minHeight:0,borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
             <img ref={imgRef2} src={pageImages[rightPage]}
               onLoad={()=>{setLoaded2(true);requestAnimationFrame(()=>draw());}}
               onClick={handleTap2}
@@ -3281,8 +3281,8 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   );
 
   const photoBlock = (
-    <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex'}}>
-      <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
+    <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',overflow:'hidden'}}>
+      <div style={{position:'relative',flex:1,minWidth:0,minHeight:0,overflow:'hidden'}}>
         <img ref={imgRef} src={pageImages[currentPage]}
           onLoad={()=>{setImgLoaded(true);requestAnimationFrame(()=>drawOverlay());}}
           style={{width:'100%',height:'100%',objectFit:'contain',display:'block',userSelect:'none'}}
@@ -3290,7 +3290,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
         <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,pointerEvents:'none'}} />
       </div>
       {showTwo&&rightPageS!==null&&(
-        <div style={{position:'relative',flex:1,minWidth:0,borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
+        <div style={{position:'relative',flex:1,minWidth:0,minHeight:0,borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
           <img ref={imgRef2S} src={pageImages[rightPageS]}
             onLoad={()=>{setImgLoaded2(true);requestAnimationFrame(()=>drawOverlay());}}
             style={{width:'100%',height:'100%',objectFit:'contain',display:'block',userSelect:'none'}}
