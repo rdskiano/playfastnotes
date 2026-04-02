@@ -2651,6 +2651,47 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
                 color:C.muted,pointerEvents:'none',fontSize:'0.65rem'}}>&#9662;</span>
             </div>
           </div>
+          {/* Name + Generate + Play inline — appear once notes are entered */}
+          {activeGroup && instrSelected && selNotes.length>0 && (
+            <div style={{flex:1,minWidth:200,display:'flex',flexDirection:'column',gap:6}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.78rem',
+                letterSpacing:'0.18em',color:C.muted}}>EXERCISE NAME</div>
+              <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
+                placeholder="Required to generate"
+                style={{fontSize:'0.85rem',padding:'7px 10px',background:'#1a1410',
+                  border:`1px solid ${docName.trim()?C.bord:'#6a3a1a'}`,color:C.cream,
+                  fontFamily:"'Inconsolata',monospace",outline:'none',width:'100%',boxSizing:'border-box'}} />
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={generate} disabled={!canGenerate||!docName.trim()} style={{
+                  flex:2,padding:'8px 4px',background:(canGenerate&&docName.trim())?C.accent:'#2a231d',
+                  border:`1px solid ${(canGenerate&&docName.trim())?C.accent:C.bord}`,
+                  color:(canGenerate&&docName.trim())?'white':C.dim,
+                  fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+                  letterSpacing:'0.08em',cursor:(canGenerate&&docName.trim())?'pointer':'not-allowed',
+                  WebkitTapHighlightColor:'transparent',
+                }}>GENERATE</button>
+                <button onClick={playPassage} disabled={!selNotes.length} style={{
+                  flex:1,padding:'8px 4px',
+                  background:passagePlaying?'#2a1010':'#2a231d',
+                  border:`1px solid ${passagePlaying?'#e53535':C.bord}`,
+                  color:passagePlaying?'#e53535':C.cream,
+                  fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+                  cursor:'pointer',WebkitTapHighlightColor:'transparent',transition:'all 0.12s',
+                }}>{passagePlaying?'\u25A0 STOP':'\u25B6 PLAY'}</button>
+              </div>
+              {saveMsg && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',
+                color:saveMsg.includes('title')||saveMsg.includes('failed')?'#e57373':C.gold}}>{saveMsg}</div>}
+              {dupWarning && (
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+                  <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:'#e5a835'}}>Duplicate — save anyway?</span>
+                  <button onClick={()=>saveExercise(true)} style={{background:C.accent,border:'none',color:'white',
+                    padding:'3px 10px',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.78rem',cursor:'pointer'}}>YES</button>
+                  <button onClick={()=>setDupWarning(false)} style={{background:'none',border:`1px solid ${C.bord}`,
+                    color:C.muted,padding:'3px 8px',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.78rem',cursor:'pointer'}}>NO</button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       )}
@@ -2795,51 +2836,6 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
               <strong style={{color:'white'}}>{selNotes.length}</strong> PITCHES &nbsp;&#183;&nbsp;
               <strong style={{color:'white'}}>{MUR_DB.filter(p=>p.section===g2s(activeGroup)).length||'—'}</strong> PATTERNS
             </span>
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* Name + Generate — visible once notes entered */}
-      {activeGroup && instrSelected && selNotes.length>0 && (
-      <div style={{padding:'8px 20px 16px',flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
-          letterSpacing:'0.18em',color:C.muted}}>EXERCISE NAME (REQUIRED)</div>
-        <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
-          placeholder="Name before generating"
-          style={{fontSize:'0.85rem',padding:'7px 10px',background:'#1a1410',
-            border:`1px solid ${docName.trim()?C.bord:'#6a3a1a'}`,color:C.cream,
-            fontFamily:"'Inconsolata',monospace",outline:'none'}} />
-        <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:8}}>
-          <button onClick={generate} disabled={!canGenerate||!docName.trim()} style={{
-            padding:'13px',background:(canGenerate&&docName.trim())?C.accent:'#2a231d',
-            border:`1px solid ${(canGenerate&&docName.trim())?C.accent:C.bord}`,
-            color:(canGenerate&&docName.trim())?'white':C.dim,
-            fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
-            letterSpacing:'0.12em',cursor:(canGenerate&&docName.trim())?'pointer':'not-allowed',
-            WebkitTapHighlightColor:'transparent',
-          }}>GENERATE EXERCISES</button>
-          <button onClick={playPassage} disabled={!selNotes.length} style={{
-            padding:'13px',
-            background:passagePlaying?'#2a1010':'#2a231d',
-            border:`1px solid ${passagePlaying?'#e53535':C.bord}`,
-            color:passagePlaying?'#e53535':C.cream,
-            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.95rem',
-            letterSpacing:'0.08em',cursor:'pointer',WebkitTapHighlightColor:'transparent',
-            transition:'all 0.12s',
-          }}>{passagePlaying?'\u25A0 STOP':'\u25B6 PLAY'}</button>
-        </div>
-        {saveMsg && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
-          color:saveMsg.includes('title')||saveMsg.includes('failed')?'#e57373':C.gold}}>{saveMsg}</div>}
-        {dupWarning && (
-          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-            <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:'#e5a835'}}>An identical exercise already exists. Save anyway?</span>
-            <button onClick={()=>saveExercise(true)} style={{background:C.accent,border:'none',color:'white',
-              padding:'5px 14px',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
-              letterSpacing:'0.08em',cursor:'pointer'}}>YES, SAVE</button>
-            <button onClick={()=>setDupWarning(false)} style={{background:'none',border:`1px solid ${C.bord}`,
-              color:C.muted,padding:'5px 12px',fontFamily:"'Bebas Neue',sans-serif",
-              fontSize:'0.85rem',cursor:'pointer'}}>CANCEL</button>
           </div>
         )}
       </div>
