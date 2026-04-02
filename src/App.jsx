@@ -99,12 +99,17 @@ function getProfile() { try { return JSON.parse(localStorage.getItem('murProfile
 function setProfile(p) { localStorage.setItem('murProfile', JSON.stringify(p)); }
 
 function useWindowHeight() {
-  const [h,setH] = useState(()=>window.innerHeight);
+  const getH = () => window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  const [h,setH] = useState(getH);
   useEffect(()=>{
-    const u = ()=>setH(window.innerHeight);
+    const u = ()=>setH(getH());
     window.addEventListener('resize',u);
     window.addEventListener('orientationchange',()=>setTimeout(u,150));
-    return ()=>window.removeEventListener('resize',u);
+    if(window.visualViewport) window.visualViewport.addEventListener('resize',u);
+    return ()=>{
+      window.removeEventListener('resize',u);
+      if(window.visualViewport) window.visualViewport.removeEventListener('resize',u);
+    };
   },[]);
   return h;
 }
@@ -2927,6 +2932,18 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
   const showTwoPages = land && totalPages>1;
   const rightPage = currentPage+1<totalPages?currentPage+1:null;
 
+  // Compute the actual rendered image bounds within the objectFit:contain element
+  const getRenderedRect = (img) => {
+    if(!img) return null;
+    const ew=img.clientWidth, eh=img.clientHeight;
+    const nw=img.naturalWidth||ew, nh=img.naturalHeight||eh;
+    if(!ew||!eh||!nw||!nh) return null;
+    const scale=Math.min(ew/nw, eh/nh);
+    const rw=nw*scale, rh=nh*scale;
+    const ox=(ew-rw)/2, oy=(eh-rh)/2;
+    return {ox,oy,rw,rh};
+  };
+
   const drawArrow = (ctx,px,py,color) => {
     const w=10,h=13;
     ctx.fillStyle=color;
@@ -2935,11 +2952,15 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
 
   const drawPage = (canvas,img,pageIdx) => {
     if(!canvas||!img) return;
-    const w=img.clientWidth,h=img.clientHeight;
-    if(!w||!h) return;
-    canvas.width=w;canvas.height=h;canvas.style.width=w+'px';canvas.style.height=h+'px';
-    const ctx=canvas.getContext('2d');ctx.clearRect(0,0,w,h);
-    markers.filter(m=>m.page===pageIdx).forEach(m=>drawArrow(ctx,m.x*w,m.y*h,C.accent));
+    const ew=img.clientWidth, eh=img.clientHeight;
+    if(!ew||!eh) return;
+    canvas.width=ew; canvas.height=eh;
+    canvas.style.width=ew+'px'; canvas.style.height=eh+'px';
+    const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,ew,eh);
+    const r=getRenderedRect(img); if(!r) return;
+    markers.filter(m=>m.page===pageIdx).forEach(m=>{
+      drawArrow(ctx, r.ox + m.x*r.rw, r.oy + m.y*r.rh, C.accent);
+    });
   };
 
   const draw = useCallback(()=>{
@@ -2958,9 +2979,14 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
 
   const handleTap = e => {
     const img=imgRef.current; if(!img) return;
+    const r=getRenderedRect(img); if(!r) return;
     const rect=img.getBoundingClientRect();
-    const x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
-    const hitX=44/img.clientWidth, hitY=44/img.clientHeight;
+    // Position relative to the element
+    const ex=e.clientX-rect.left, ey=e.clientY-rect.top;
+    // Position relative to the rendered image content
+    const x=(ex-r.ox)/r.rw, y=(ey-r.oy)/r.rh;
+    if(x<0||x>1||y<0||y>1) return; // tapped letterbox area
+    const hitX=44/r.rw, hitY=44/r.rh;
     const near=markers.findIndex(m=>m.page===currentPage&&Math.abs(m.x-x)<hitX&&Math.abs(m.y-y)<hitY);
     if(near>=0) setMarkers(prev=>prev.filter((_,i)=>i!==near));
     else setMarkers(prev=>[...prev,{page:currentPage,x,y}]);
@@ -2969,9 +2995,12 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
   const handleTap2 = e => {
     if(rightPage===null) return;
     const img=imgRef2.current; if(!img) return;
+    const r=getRenderedRect(img); if(!r) return;
     const rect=img.getBoundingClientRect();
-    const x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
-    const hitX=44/img.clientWidth, hitY=44/img.clientHeight;
+    const ex=e.clientX-rect.left, ey=e.clientY-rect.top;
+    const x=(ex-r.ox)/r.rw, y=(ey-r.oy)/r.rh;
+    if(x<0||x>1||y<0||y>1) return;
+    const hitX=44/r.rw, hitY=44/r.rh;
     const near=markers.findIndex(m=>m.page===rightPage&&Math.abs(m.x-x)<hitX&&Math.abs(m.y-y)<hitY);
     if(near>=0) setMarkers(prev=>prev.filter((_,i)=>i!==near));
     else setMarkers(prev=>[...prev,{page:rightPage,x,y}]);
@@ -3198,6 +3227,17 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
     return ()=>document.removeEventListener('visibilitychange', onVisible);
   },[metroOn]);
 
+  const getRenderedRect = (img) => {
+    if(!img) return null;
+    const ew=img.clientWidth, eh=img.clientHeight;
+    const nw=img.naturalWidth||ew, nh=img.naturalHeight||eh;
+    if(!ew||!eh||!nw||!nh) return null;
+    const scale=Math.min(ew/nw, eh/nh);
+    const rw=nw*scale, rh=nh*scale;
+    const ox=(ew-rw)/2, oy=(eh-rh)/2;
+    return {ox,oy,rw,rh};
+  };
+
   const drawArrow = (ctx,px,py,color) => {
     const w=10,h=13;ctx.fillStyle=color;
     ctx.beginPath();ctx.moveTo(px-w,py-h-2);ctx.lineTo(px+w,py-h-2);ctx.lineTo(px,py-2);ctx.closePath();ctx.fill();
@@ -3205,18 +3245,19 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
 
   const drawOnCanvas = useCallback((canvas,img,pageIdx)=>{
     if(!canvas||!img||!img.complete) return;
-    const w=img.clientWidth,h=img.clientHeight;if(!w||!h) return;
-    canvas.width=w;canvas.height=h;canvas.style.width=w+'px';canvas.style.height=h+'px';
-    const ctx=canvas.getContext('2d');ctx.clearRect(0,0,w,h);
+    const ew=img.clientWidth, eh=img.clientHeight; if(!ew||!eh) return;
+    canvas.width=ew; canvas.height=eh;
+    canvas.style.width=ew+'px'; canvas.style.height=eh+'px';
+    const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,ew,eh);
+    const r=getRenderedRect(img); if(!r) return;
     const activeStart=step.units[0];
     const activeEnd=Math.min(step.units[step.units.length-1]+1,markers.length-1);
     const GREEN='#3db06a';
     markers.filter(m=>m.page===pageIdx).forEach(m=>{
       const gi=markers.indexOf(m);
       const isStart=gi===activeStart,isEnd=gi===activeEnd;
-      // Only show active start and end — hide all others
       if(!isStart&&!isEnd) return;
-      drawArrow(ctx,m.x*w,m.y*h,GREEN);
+      drawArrow(ctx, r.ox + m.x*r.rw, r.oy + m.y*r.rh, GREEN);
     });
   },[step.units,markers]);
 
