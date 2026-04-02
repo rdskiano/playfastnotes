@@ -155,23 +155,39 @@ function generateSteps(N, start, goal, inc) {
 ═══════════════════════════════════════════════════════════════════════ */
 class Metro {
   constructor(){this.ctx=null;this.id=null;this.bpm=80;this.next=0;}
+  _ensureCtx(){
+    // Create fresh context if none exists or if closed (e.g. after backgrounding)
+    if(!this.ctx||this.ctx.state==='closed'){
+      this.ctx=new(window.AudioContext||window.webkitAudioContext)();
+    }
+    // Always resume in case iOS suspended it
+    if(this.ctx.state==='suspended') this.ctx.resume();
+  }
   _click(t){
-    const o=this.ctx.createOscillator(),g=this.ctx.createGain();
-    o.connect(g);g.connect(this.ctx.destination);o.frequency.value=1100;
-    g.gain.setValueAtTime(0.35,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.03);
-    o.start(t);o.stop(t+0.04);
+    try {
+      const o=this.ctx.createOscillator(),g=this.ctx.createGain();
+      o.connect(g);g.connect(this.ctx.destination);o.frequency.value=1100;
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(0.7,t+0.003);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.06);
+      o.start(t);o.stop(t+0.07);
+    } catch(e){}
   }
   _sched(){
-    while(this.next<this.ctx.currentTime+0.12){this._click(this.next);this.next+=60/this.bpm;}
-    this.id=setTimeout(()=>this._sched(),40);
+    // Larger lookahead (0.25s) so late timer fires don't drop clicks
+    while(this.next<this.ctx.currentTime+0.25){this._click(this.next);this.next+=60/this.bpm;}
+    this.id=setTimeout(()=>this._sched(),80);
   }
   start(bpm){
     this.stop();this.bpm=bpm;
-    if(!this.ctx)this.ctx=new(window.AudioContext||window.webkitAudioContext)();
-    if(this.ctx.state==='suspended')this.ctx.resume();
+    this._ensureCtx();
     this.next=this.ctx.currentTime+0.05;this._sched();
   }
-  setBpm(bpm){this.bpm=bpm;}
+  setBpm(bpm){
+    this.bpm=bpm;
+    // Also resume context in case it was suspended while running
+    if(this.ctx&&this.ctx.state==='suspended') this.ctx.resume();
+  }
   stop(){if(this.id){clearTimeout(this.id);this.id=null;}}
 }
 
@@ -2113,12 +2129,14 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
 
   // ── Generate ───────────────────────────────────────────────────────
   const generate = () => {
-    if(!activeGroup||!selNotes.length) return;
+    if(!activeGroup||!selNotes.length||!docName.trim()) return;
     const sec=g2s(activeGroup);
     const pats=MUR_DB.filter(p=>p.section===sec);
     setExercises(pats.map(p=>({pat:p,abc:null})));
     setExIdx(0);
     setGenerated(true);
+    // Auto-save the exercise when generating
+    saveExercise();
     // Log practice session
     try {
       const prof = JSON.parse(localStorage.getItem('murProfile')||'{}');
@@ -2439,24 +2457,10 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
         <Btn onClick={()=>setGenerated(false)} style={{fontSize:'0.85rem',padding:'7px 14px',flexShrink:0}}>
           ← EDIT
         </Btn>
-        <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
-          placeholder="Title required to save"
-          style={{flex:1,background:C.panel,border:`1px solid ${C.bord}`,color:C.cream,
-            padding:'6px 10px',fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',outline:'none'}}/>
-        <Btn onClick={saveExercise} disabled={saving||!docName.trim()} style={{fontSize:'0.8rem',padding:'7px 12px',flexShrink:0,borderColor:C.bord2}}>
-          {saving?'SAVING…':'SAVE'}
-        </Btn>
-        {saveMsg && <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:saveMsg.includes('title')||saveMsg.includes('failed')?'#e57373':C.gold,flexShrink:0}}>{saveMsg}</span>}
-        {dupWarning && (
-          <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-            <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:'#e5a835'}}>Duplicate — save anyway?</span>
-            <button onClick={()=>saveExercise(true)} style={{background:C.accent,border:'none',color:'white',
-              padding:'3px 10px',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
-              letterSpacing:'0.08em',cursor:'pointer'}}>YES</button>
-            <button onClick={()=>setDupWarning(false)} style={{background:'none',border:`1px solid ${C.bord}`,
-              color:C.muted,padding:'3px 8px',fontFamily:"'Bebas Neue',sans-serif",
-              fontSize:'0.75rem',cursor:'pointer'}}>NO</button>
-          </div>
+        {docName && (
+          <span style={{flex:1,fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.95rem',
+            letterSpacing:'0.1em',color:C.cream,overflow:'hidden',textOverflow:'ellipsis',
+            whiteSpace:'nowrap'}}>{docName}</span>
         )}
         <button onClick={handleRVDone} style={{
           background:C.accent,border:`1px solid ${C.accent}`,
@@ -2519,29 +2523,6 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
           fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
           letterSpacing:'0.1em',flexShrink:0,WebkitTapHighlightColor:'transparent',
         }}>DONE ✓</button>
-      </div>
-      {/* Save row */}
-      <div style={{display:'flex',alignItems:'center',gap:6,padding:'6px 10px',
-        flexShrink:0,borderBottom:`1px solid ${C.bord}`,background:'#0e0c09'}}>
-        <input type="text" value={docName} onChange={e=>setDocName(e.target.value)}
-          placeholder="Title required to save"
-          style={{flex:1,background:C.panel,border:`1px solid ${C.bord}`,color:C.cream,
-            padding:'6px 10px',fontFamily:"'Inconsolata',monospace",fontSize:'0.9rem',outline:'none'}}/>
-        <Btn onClick={saveExercise} disabled={saving||!docName.trim()} style={{fontSize:'0.85rem',padding:'7px 14px',flexShrink:0,borderColor:C.bord2}}>
-          {saving?'SAVING…':'SAVE'}
-        </Btn>
-        {saveMsg && <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:saveMsg.includes('title')||saveMsg.includes('failed')?'#e57373':C.gold,flexShrink:0}}>{saveMsg}</span>}
-        {dupWarning && (
-          <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-            <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:'#e5a835'}}>Duplicate — save anyway?</span>
-            <button onClick={()=>saveExercise(true)} style={{background:C.accent,border:'none',color:'white',
-              padding:'4px 12px',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.8rem',
-              letterSpacing:'0.08em',cursor:'pointer'}}>YES</button>
-            <button onClick={()=>setDupWarning(false)} style={{background:'none',border:`1px solid ${C.bord}`,
-              color:C.muted,padding:'4px 10px',fontFamily:"'Bebas Neue',sans-serif",
-              fontSize:'0.8rem',cursor:'pointer'}}>NO</button>
-          </div>
-        )}
       </div>
       <div ref={exDivRef} style={{background:'white',flex:'1 1 0',overflowY:'auto',padding:'8px 12px'}} />
     </div>
@@ -3204,6 +3185,18 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   useEffect(()=>{if(metroOn)metro.current.start(step.tempo);else metro.current.stop();},[metroOn]);
   useEffect(()=>{metro.current.setBpm(step.tempo);},[step.tempo]);
   useEffect(()=>()=>metro.current.stop(),[]);
+  // Resume AudioContext when app returns to foreground (iOS suspends it on background)
+  useEffect(()=>{
+    const onVisible = () => {
+      if(document.visibilityState==='visible' && metroOn) {
+        metro.current._ensureCtx();
+        // Brief restart to resync timing
+        metro.current.start(metro.current.bpm);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return ()=>document.removeEventListener('visibilitychange', onVisible);
+  },[metroOn]);
 
   const drawArrow = (ctx,px,py,color) => {
     const w=10,h=13;ctx.fillStyle=color;
