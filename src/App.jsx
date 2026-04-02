@@ -1308,7 +1308,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
           <img data-page={currentPage} src={pageImages[currentPage]}
             onClick={handleTap}
-            style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
+            style={{width:'100%',height:'95%',objectFit:'contain',display:'block',
               userSelect:'none',WebkitUserSelect:'none',cursor:'crosshair'}}
             onContextMenu={e=>e.preventDefault()}
             draggable={false} />
@@ -1318,7 +1318,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
             <img data-page={rightPage} src={pageImages[rightPage]}
               onClick={handleTap}
-              style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
+              style={{width:'100%',height:'95%',objectFit:'contain',display:'block',
                 userSelect:'none',WebkitUserSelect:'none',cursor:'crosshair'}}
               onContextMenu={e=>e.preventDefault()}
               draggable={false} />
@@ -3078,7 +3078,7 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
           <img ref={imgRef} src={pageImages[currentPage]}
             onLoad={()=>{setLoaded(true);requestAnimationFrame(()=>draw());}}
             onClick={handleTap}
-            style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
+            style={{width:'100%',height:'95%',objectFit:'contain',display:'block',
               userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}
             onContextMenu={e=>e.preventDefault()}
             draggable={false} />
@@ -3285,7 +3285,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
       <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
         <img ref={imgRef} src={pageImages[currentPage]}
           onLoad={()=>{setImgLoaded(true);requestAnimationFrame(()=>drawOverlay());}}
-          style={{width:'100%',height:'100%',objectFit:'contain',display:'block',userSelect:'none'}}
+          style={{width:'100%',height:'95%',objectFit:'contain',display:'block',userSelect:'none'}}
           draggable={false} />
         <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none'}} />
       </div>
@@ -3293,7 +3293,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
         <div style={{position:'relative',flex:1,minWidth:0,borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
           <img ref={imgRef2S} src={pageImages[rightPageS]}
             onLoad={()=>{setImgLoaded2(true);requestAnimationFrame(()=>drawOverlay());}}
-            style={{width:'100%',height:'100%',objectFit:'contain',display:'block',userSelect:'none'}}
+            style={{width:'100%',height:'95%',objectFit:'contain',display:'block',userSelect:'none'}}
             draggable={false} />
           <canvas ref={canvasRef2S} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none'}} />
         </div>
