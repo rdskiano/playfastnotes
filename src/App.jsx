@@ -1073,7 +1073,10 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   };
 
   const modeBtn = (mode, label) => (
-    <button onClick={()=>setSessionMode(mode)} style={{
+    <button onClick={()=>{
+      setSessionMode(mode);
+      if(mode==='interleaved') setShowIntroModal(true);
+    }} style={{
       fontFamily:"'Bebas Neue',sans-serif", fontSize:'0.9rem',
       letterSpacing:'0.1em', padding:'7px 18px',
       background: sessionMode===mode ? C.accent : '#2a231d',
@@ -1089,6 +1092,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   const [placeMetroOn,  setPlaceMetroOn]    = useState(false);
   const [promptSpotId,  setPromptSpotId]    = useState(null); // Y/N tempo dialog
   const [metroWaiting,  setMetroWaiting]    = useState(false); // metro bar glow
+  const [showIntroModal, setShowIntroModal] = useState(false); // instructions on mode switch
   const placeMetro = useRef(new Metro());
   useEffect(()=>()=>placeMetro.current.stop(),[]);
   // Auto-select the most recently placed spot and prompt for tempo
@@ -1217,6 +1221,44 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             </div>
           </div>
         </div>
+
+        {/* Interleaved intro modal */}
+        {showIntroModal && (
+          <div style={{
+            position:'absolute',left:'50%',top:'50%',
+            transform:'translate(-50%,-50%)',
+            zIndex:50,
+            background:C.ink,border:`2px solid #4a9eff`,
+            borderRadius:6,
+            padding:'22px 24px',
+            width:'min(340px, 88vw)',
+            boxShadow:'0 8px 40px rgba(0,0,0,0.7)',
+            display:'flex',flexDirection:'column',gap:14,
+          }}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
+                letterSpacing:'0.15em',color:'#4a9eff'}}>INTERLEAVED PRACTICE</div>
+              <button onClick={()=>setShowIntroModal(false)} style={{
+                background:'none',border:'none',color:C.muted,cursor:'pointer',
+                fontSize:'1.1rem',padding:'0 2px',lineHeight:1,flexShrink:0,
+              }}>✕</button>
+            </div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",
+              fontSize:'1.05rem',color:C.cream,lineHeight:1.65}}>
+              Tap a few different passages in your music to mark them — anywhere from 3 to 7 spots.
+              Optionally set a practice tempo for each one.
+              <br/><br/>
+              You'll cycle through them in random order. The goal is 5 clean runs in a row for every spot — miss one and that spot resets to zero!
+            </div>
+            <button onClick={()=>setShowIntroModal(false)} style={{
+              padding:'10px 0',
+              background:'#4a9eff',border:'none',color:'white',
+              fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+              letterSpacing:'0.12em',cursor:'pointer',borderRadius:3,
+              WebkitTapHighlightColor:'transparent',
+            }}>GOT IT →</button>
+          </div>
+        )}
 
         {/* Tempo prompt dialog */}
         {promptSpotId && (
