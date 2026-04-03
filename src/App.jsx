@@ -1112,22 +1112,34 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
       placeMetro.current.setBpm(next);
       if(placeMetroOn) placeMetro.current.start(next);
     };
-    const toggleMetro = () => {
-      const next = !placeMetroOn;
-      setPlaceMetroOn(next);
-      if(next) placeMetro.current.start(placeMetroBpm);
-      else     placeMetro.current.stop();
-    };
-    const lockIn = () => {
-      if(!selectedSpotId) return;
-      onBpmChange(selectedSpotId, placeMetroBpm);
-      setMetroWaiting(false);
-    };
 
-    const bpmBtn = (label, delta) => (
-      <button onClick={()=>adjustBpm(delta)} style={{
+    // Long-press BPM step button
+    const useLongPress = (onPress) => {
+      const timerRef = useRef(null);
+      const intervalRef = useRef(null);
+      const startPress = () => {
+        onPress(1);
+        timerRef.current = setTimeout(()=>{
+          intervalRef.current = setInterval(()=>onPress(10), 100);
+        }, 600);
+      };
+      const endPress = () => {
+        clearTimeout(timerRef.current);
+        clearInterval(intervalRef.current);
+      };
+      return {
+        onMouseDown:startPress, onMouseUp:endPress, onMouseLeave:endPress,
+        onTouchStart:e=>{e.preventDefault();startPress();},
+        onTouchEnd:endPress,
+      };
+    };
+    const decProps = useLongPress(n => adjustBpm(-n));
+    const incProps = useLongPress(n => adjustBpm(n));
+
+    const stepBtn = (label, pressProps) => (
+      <button {...pressProps} style={{
         background:'#2a231d',border:`1px solid ${C.bord2}`,color:C.cream,
-        width:36,height:36,cursor:'pointer',
+        width:36,height:36,cursor:'pointer',userSelect:'none',
         fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
         display:'flex',alignItems:'center',justifyContent:'center',
         flexShrink:0,WebkitTapHighlightColor:'transparent',
@@ -1139,40 +1151,66 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         <TopBar
           left={<BackBtn onClick={onBack} />}
           center={piece?.title||'INTERLEAVED'}
-          right={<div style={{display:'flex',gap:4}}>{modeBtn('massed','BLOCKED')}{modeBtn('interleaved','INTERLEAVED')}</div>}
+          right={
+            <div style={{display:'flex',gap:4,alignItems:'center'}}>
+              {modeBtn('massed','BLOCKED')}
+              {modeBtn('interleaved','INTERLEAVED')}
+              <button onClick={onStartSession} disabled={!canStart} style={{
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+                letterSpacing:'0.1em',padding:'7px 14px',
+                background:canStart?'#4a9eff':'transparent',
+                color:canStart?'white':C.dim,
+                border:`1px solid ${canStart?'#4a9eff':C.bord}`,
+                cursor:canStart?'pointer':'not-allowed',
+                WebkitTapHighlightColor:'transparent',
+              }}>START →</button>
+            </div>
+          }
         />
 
         {/* Metronome bar */}
         <div style={{display:'flex',alignItems:'center',gap:8,
-          padding:'8px 14px',flexShrink:0,
-          background:metroWaiting?'rgba(74,158,255,0.08)':C.panel,
-          borderBottom:`1px solid ${metroWaiting?'rgba(74,158,255,0.6)':C.bord}`,
-          boxShadow:metroWaiting?'0 2px 12px rgba(74,158,255,0.18)':'none',
-          transition:'background 0.2s, border-color 0.2s, box-shadow 0.2s'}}>
-          {bpmBtn('−', -5)}
+          padding:'7px 12px',flexShrink:0,
+          background:C.panel,borderBottom:`1px solid ${C.bord}`}}>
+          {stepBtn('−', decProps)}
           <span style={{fontFamily:"'Bebas Neue',sans-serif",
-            fontSize:'clamp(1.4rem,4vw,1.9rem)',letterSpacing:'0.06em',
+            fontSize:'clamp(1.2rem,4vw,1.7rem)',letterSpacing:'0.06em',
             color:placeMetroOn?C.accent:C.cream,lineHeight:1,
-            minWidth:90,textAlign:'center',flexShrink:0}}>♩ = {placeMetroBpm}</span>
-          {bpmBtn('+', 5)}
+            minWidth:80,textAlign:'center',flexShrink:0}}>♩ = {placeMetroBpm}</span>
+          {stepBtn('+', incProps)}
           <button onClick={toggleMetro} style={{
-            background:placeMetroOn?C.accent:'#2a231d',
-            border:`2px solid ${placeMetroOn?C.accent:'#666'}`,
+            background: metroWaiting ? '#4a9eff' : placeMetroOn ? C.accent : '#2a231d',
+            border:`2px solid ${metroWaiting ? '#4a9eff' : placeMetroOn ? C.accent : '#666'}`,
             color:'white',width:40,height:40,cursor:'pointer',
             fontSize:'1.1rem',display:'flex',alignItems:'center',justifyContent:'center',
             flexShrink:0,WebkitTapHighlightColor:'transparent',
+            boxShadow: metroWaiting ? '0 0 0 3px rgba(74,158,255,0.35)' : 'none',
+            transition:'background 0.2s, border-color 0.2s, box-shadow 0.2s',
           }}>{placeMetroOn?'⏸':'▶'}</button>
-          <button onClick={lockIn} disabled={!selectedSpotId} style={{
-            flex:1,padding:'8px 6px',
-            background:alreadyLocked?'rgba(61,176,106,0.18)':'#2a231d',
-            border:`1px solid ${alreadyLocked?'#3db06a':selectedSpotId?C.bord2:C.bord}`,
-            color:alreadyLocked?'#3db06a':selectedSpotId?C.cream:C.dim,
-            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.78rem',
-            letterSpacing:'0.08em',cursor:selectedSpotId?'pointer':'not-allowed',
-            WebkitTapHighlightColor:'transparent',textAlign:'center',lineHeight:1.3,
-          }}>
-            {alreadyLocked ? '✓ LOCKED' : selectedSpotId ? `LOCK IN →\nSPOT ${selectedSpotId}` : 'LOCK IN'}
-          </button>
+          <div style={{display:'flex',flexDirection:'column',flex:1,gap:3,minWidth:0}}>
+            <button onClick={lockIn} disabled={!selectedSpotId} style={{
+              padding:'5px 8px',
+              background:alreadyLocked?'rgba(61,176,106,0.18)':'#2a231d',
+              border:`1px solid ${alreadyLocked?'#3db06a':selectedSpotId?C.bord2:C.bord}`,
+              color:alreadyLocked?'#3db06a':selectedSpotId?C.cream:C.dim,
+              fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+              letterSpacing:'0.08em',cursor:selectedSpotId?'pointer':'not-allowed',
+              WebkitTapHighlightColor:'transparent',whiteSpace:'nowrap',
+            }}>
+              {alreadyLocked ? '✓ TEMPO SET' : 'SET TEMPO'}
+            </button>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+              fontSize:'0.72rem',color: metroWaiting ? '#4a9eff' : C.muted,
+              lineHeight:1.3,transition:'color 0.2s',paddingLeft:1}}>
+              {metroWaiting
+                ? `▶ play, then set tempo for spot ${selectedSpotId}`
+                : interleavedSpots.length===0
+                ? 'Tap score to place spots (3–7)'
+                : interleavedSpots.length<3
+                ? `${interleavedSpots.length} spot${interleavedSpots.length!==1?'s':''} placed — need 3 to start`
+                : `${interleavedSpots.length} spot${interleavedSpots.length!==1?'s':''} — tap a spot to select`}
+            </div>
+          </div>
         </div>
 
         {/* Tempo prompt dialog */}
@@ -1221,61 +1259,10 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             </div>
           </div>
         )}
-        {/* Spot count + start bar */}
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-          padding:'7px 14px',flexShrink:0,
-          background:'rgba(74,158,255,0.06)',
-          borderBottom:'1px solid rgba(74,158,255,0.2)',gap:10}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-            fontSize:'0.95rem',color:C.cream}}>
-            {interleavedSpots.length===0
-              ? 'Tap score to place spots (3–7)'
-              : interleavedSpots.length<3
-              ? `${interleavedSpots.length} spot${interleavedSpots.length!==1?'s':''} — need at least 3`
-              : `${interleavedSpots.length} spot${interleavedSpots.length!==1?'s':''} — tap a spot to select it`}
-          </div>
-          <button onClick={onStartSession} disabled={!canStart} style={{
-            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
-            letterSpacing:'0.1em',padding:'7px 14px',flexShrink:0,
-            background:canStart?'#4a9eff':'#2a231d',
-            color:canStart?'white':C.dim,
-            border:`1px solid ${canStart?'#4a9eff':C.bord}`,
-            cursor:canStart?'pointer':'not-allowed',
-            WebkitTapHighlightColor:'transparent',
-          }}>START →</button>
-        </div>
 
-        {/* Page nav */}
-        {totalPages>1 && (
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-            padding:'7px 14px',flexShrink:0,
-            background:C.ink,borderBottom:`1px solid ${C.bord}`}}>
-            <button onClick={()=>setCurrentPage(p=>Math.max(0,p-1))} disabled={currentPage===0}
-              style={{background:'none',border:`1px solid ${C.bord2}`,color:C.cream,
-                padding:'5px 14px',fontSize:'0.85rem',letterSpacing:'0.06em',
-                fontFamily:"'Bebas Neue',sans-serif",cursor:currentPage===0?'default':'pointer',
-                opacity:currentPage===0?0.35:1}}>← PREV</button>
-            <div style={{textAlign:'center'}}>
-              <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.cream}}>
-                page {currentPage+1} of {totalPages}
-              </div>
-              {(()=>{const n=interleavedSpots.filter(s=>s.page===currentPage).length;
-                return n>0?<div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.68rem',
-                  color:'#4a9eff',marginTop:1}}>{n} spot{n!==1?'s':''} here</div>:null;})()}
-            </div>
-            <button onClick={()=>setCurrentPage(p=>Math.min(totalPages-1,p+1))}
-              disabled={currentPage===totalPages-1}
-              style={{background:'none',border:`1px solid ${C.bord2}`,color:C.cream,
-                padding:'5px 14px',fontSize:'0.85rem',letterSpacing:'0.06em',
-                fontFamily:"'Bebas Neue',sans-serif",
-                cursor:currentPage===totalPages-1?'default':'pointer',
-                opacity:currentPage===totalPages-1?0.35:1}}>NEXT →</button>
-          </div>
-        )}
-
-        {/* Score */}
+        {/* Score — floating arrows over it, same as normal score view */}
         <div style={{flex:'1 1 0',minHeight:0,overflowY:'auto',
-          background:'#0a0805',WebkitOverflowScrolling:'touch'}}>
+          background:'#0a0805',WebkitOverflowScrolling:'touch',position:'relative'}}>
           <div style={{position:'relative',width:'100%'}}>
             <img data-page={currentPage} src={pageImages[currentPage]}
               onClick={handleTap}
@@ -1290,6 +1277,35 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
               />
             ))}
           </div>
+          {/* Floating left arrow */}
+          {totalPages>1 && currentPage>0 && (
+            <button onClick={()=>setCurrentPage(p=>p-1)} style={{
+              position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',
+              zIndex:10,background:'rgba(26,22,18,0.7)',border:'none',
+              color:C.cream,fontSize:'1.8rem',padding:'16px 10px',
+              cursor:'pointer',WebkitTapHighlightColor:'transparent',
+              borderRadius:'0 4px 4px 0',
+            }}>‹</button>
+          )}
+          {/* Floating right arrow */}
+          {totalPages>1 && currentPage<totalPages-1 && (
+            <button onClick={()=>setCurrentPage(p=>p+1)} style={{
+              position:'absolute',right:0,top:'50%',transform:'translateY(-50%)',
+              zIndex:10,background:'rgba(26,22,18,0.7)',border:'none',
+              color:C.cream,fontSize:'1.8rem',padding:'16px 10px',
+              cursor:'pointer',WebkitTapHighlightColor:'transparent',
+              borderRadius:'4px 0 0 4px',
+            }}>›</button>
+          )}
+          {/* Page indicator */}
+          {totalPages>1 && (
+            <div style={{
+              position:'absolute',bottom:12,left:'50%',transform:'translateX(-50%)',
+              zIndex:10,background:'rgba(26,22,18,0.85)',
+              padding:'3px 10px',borderRadius:10,pointerEvents:'none',
+              fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.cream,
+            }}>{currentPage+1} / {totalPages}</div>
+          )}
         </div>
       </div>
     );
