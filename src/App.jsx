@@ -1113,28 +1113,22 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
       if(placeMetroOn) placeMetro.current.start(next);
     };
 
-    // Long-press BPM step button
-    const useLongPress = (onPress) => {
-      const timerRef = useRef(null);
-      const intervalRef = useRef(null);
-      const startPress = () => {
-        onPress(1);
-        timerRef.current = setTimeout(()=>{
-          intervalRef.current = setInterval(()=>onPress(10), 100);
-        }, 600);
+    // Long-press BPM step — plain DOM timers, no hooks (must not use hooks inside conditional)
+    const makePressProps = (onStep) => {
+      let timer = null, interval = null;
+      const start = () => {
+        onStep(1);
+        timer = setTimeout(()=>{ interval = setInterval(()=>onStep(10), 100); }, 600);
       };
-      const endPress = () => {
-        clearTimeout(timerRef.current);
-        clearInterval(intervalRef.current);
-      };
+      const end = () => { clearTimeout(timer); clearInterval(interval); };
       return {
-        onMouseDown:startPress, onMouseUp:endPress, onMouseLeave:endPress,
-        onTouchStart:e=>{e.preventDefault();startPress();},
-        onTouchEnd:endPress,
+        onMouseDown:start, onMouseUp:end, onMouseLeave:end,
+        onTouchStart:e=>{e.preventDefault();start();},
+        onTouchEnd:end,
       };
     };
-    const decProps = useLongPress(n => adjustBpm(-n));
-    const incProps = useLongPress(n => adjustBpm(n));
+    const decProps = makePressProps(n => adjustBpm(-n));
+    const incProps = makePressProps(n => adjustBpm(n));
 
     const stepBtn = (label, pressProps) => (
       <button {...pressProps} style={{
