@@ -1087,12 +1087,17 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   const [selectedSpotId, setSelectedSpotId] = useState(null);
   const [placeMetroBpm, setPlaceMetroBpm]   = useState(80);
   const [placeMetroOn,  setPlaceMetroOn]    = useState(false);
+  const [promptSpotId,  setPromptSpotId]    = useState(null); // Y/N tempo dialog
+  const [metroWaiting,  setMetroWaiting]    = useState(false); // metro bar glow
   const placeMetro = useRef(new Metro());
   useEffect(()=>()=>placeMetro.current.stop(),[]);
-  // Auto-select the most recently placed spot
+  // Auto-select the most recently placed spot and prompt for tempo
   useEffect(()=>{
-    if(interleavedSpots.length>0)
-      setSelectedSpotId(interleavedSpots[interleavedSpots.length-1].id);
+    if(interleavedSpots.length>0) {
+      const newest = interleavedSpots[interleavedSpots.length-1];
+      setSelectedSpotId(newest.id);
+      setPromptSpotId(newest.id);
+    }
   },[interleavedSpots.length]);
 
   if(isInterleaved && !locateEx) {
@@ -1116,6 +1121,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     const lockIn = () => {
       if(!selectedSpotId) return;
       onBpmChange(selectedSpotId, placeMetroBpm);
+      setMetroWaiting(false);
     };
 
     const bpmBtn = (label, delta) => (
@@ -1129,7 +1135,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     );
 
     return (
-      <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
+      <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,position:'relative'}}>
         <TopBar
           left={<BackBtn onClick={onBack} />}
           center={piece?.title||'INTERLEAVED'}
@@ -1139,7 +1145,10 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         {/* Metronome bar */}
         <div style={{display:'flex',alignItems:'center',gap:8,
           padding:'8px 14px',flexShrink:0,
-          background:C.panel,borderBottom:`1px solid ${C.bord}`}}>
+          background:metroWaiting?'rgba(74,158,255,0.08)':C.panel,
+          borderBottom:`1px solid ${metroWaiting?'rgba(74,158,255,0.6)':C.bord}`,
+          boxShadow:metroWaiting?'0 2px 12px rgba(74,158,255,0.18)':'none',
+          transition:'background 0.2s, border-color 0.2s, box-shadow 0.2s'}}>
           {bpmBtn('−', -5)}
           <span style={{fontFamily:"'Bebas Neue',sans-serif",
             fontSize:'clamp(1.4rem,4vw,1.9rem)',letterSpacing:'0.06em',
@@ -1166,6 +1175,52 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
           </button>
         </div>
 
+        {/* Tempo prompt dialog */}
+        {promptSpotId && (
+          <div style={{
+            position:'absolute',left:'50%',top:'50%',
+            transform:'translate(-50%,-50%)',
+            zIndex:50,
+            background:C.ink,border:`2px solid #4a9eff`,
+            borderRadius:6,
+            padding:'22px 24px',
+            width:'min(320px, 85vw)',
+            boxShadow:'0 8px 40px rgba(0,0,0,0.7)',
+            display:'flex',flexDirection:'column',gap:14,
+            textAlign:'center',
+          }}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
+              letterSpacing:'0.15em',color:'#4a9eff'}}>
+              SPOT {promptSpotId} PLACED
+            </div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+              fontSize:'1.05rem',color:C.cream,lineHeight:1.5}}>
+              Set a tempo for this spot?
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>{
+                setPromptSpotId(null);
+                setMetroWaiting(true);
+              }} style={{
+                flex:1,padding:'10px 0',
+                background:'#4a9eff',border:'none',color:'white',
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                letterSpacing:'0.12em',cursor:'pointer',borderRadius:3,
+                WebkitTapHighlightColor:'transparent',
+              }}>YES</button>
+              <button onClick={()=>{
+                setPromptSpotId(null);
+                setMetroWaiting(false);
+              }} style={{
+                flex:1,padding:'10px 0',
+                background:'transparent',border:`1px solid ${C.bord2}`,color:C.muted,
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                letterSpacing:'0.12em',cursor:'pointer',borderRadius:3,
+                WebkitTapHighlightColor:'transparent',
+              }}>NO</button>
+            </div>
+          </div>
+        )}
         {/* Spot count + start bar */}
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
           padding:'7px 14px',flexShrink:0,
