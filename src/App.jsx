@@ -1112,6 +1112,17 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
       placeMetro.current.setBpm(next);
       if(placeMetroOn) placeMetro.current.start(next);
     };
+    const toggleMetro = () => {
+      const next = !placeMetroOn;
+      setPlaceMetroOn(next);
+      if(next) placeMetro.current.start(placeMetroBpm);
+      else     placeMetro.current.stop();
+    };
+    const lockIn = () => {
+      if(!selectedSpotId) return;
+      onBpmChange(selectedSpotId, placeMetroBpm);
+      setMetroWaiting(false);
+    };
 
     // Long-press BPM step — plain DOM timers, no hooks (must not use hooks inside conditional)
     const makePressProps = (onStep) => {
