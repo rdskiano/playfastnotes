@@ -1094,6 +1094,8 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   const [metroWaiting,  setMetroWaiting]    = useState(false); // metro bar glow
   const [showIntroModal, setShowIntroModal] = useState(false); // instructions on mode switch
   const placeMetro = useRef(new Metro());
+  const bpmTimerRef    = useRef(null);
+  const bpmIntervalRef = useRef(null);
   useEffect(()=>()=>placeMetro.current.stop(),[]);
   // Auto-select the most recently placed spot and prompt for tempo
   useEffect(()=>{
@@ -1113,8 +1115,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     const adjustBpm = delta => {
       const next = Math.min(220, Math.max(30, placeMetroBpm + delta));
       setPlaceMetroBpm(next);
-      placeMetro.current.setBpm(next);
-      if(placeMetroOn) placeMetro.current.start(next);
+      placeMetro.current.setBpm(next); // setBpm updates bpm mid-tick; no restart needed
     };
     const toggleMetro = () => {
       const next = !placeMetroOn;
@@ -1128,14 +1129,20 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
       setMetroWaiting(false);
     };
 
-    // Long-press BPM step — plain DOM timers, no hooks (must not use hooks inside conditional)
+    // Long-press BPM step — refs live outside conditional so re-renders don't stack intervals
     const makePressProps = (onStep) => {
-      let timer = null, interval = null;
       const start = () => {
         onStep(1);
-        timer = setTimeout(()=>{ interval = setInterval(()=>onStep(10), 100); }, 600);
+        bpmTimerRef.current = setTimeout(()=>{
+          bpmIntervalRef.current = setInterval(()=>onStep(10), 100);
+        }, 600);
       };
-      const end = () => { clearTimeout(timer); clearInterval(interval); };
+      const end = () => {
+        clearTimeout(bpmTimerRef.current);
+        clearInterval(bpmIntervalRef.current);
+        bpmTimerRef.current = null;
+        bpmIntervalRef.current = null;
+      };
       return {
         onMouseDown:start, onMouseUp:end, onMouseLeave:end,
         onTouchStart:e=>{e.preventDefault();start();},
@@ -1196,29 +1203,27 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             boxShadow: metroWaiting ? '0 0 0 3px rgba(74,158,255,0.35)' : 'none',
             transition:'background 0.2s, border-color 0.2s, box-shadow 0.2s',
           }}>{placeMetroOn?'⏸':'▶'}</button>
-          <div style={{display:'flex',flexDirection:'column',flex:1,gap:3,minWidth:0}}>
-            <button onClick={lockIn} disabled={!selectedSpotId} style={{
-              padding:'5px 8px',
-              background:alreadyLocked?'rgba(61,176,106,0.18)':'#2a231d',
-              border:`1px solid ${alreadyLocked?'#3db06a':selectedSpotId?C.bord2:C.bord}`,
-              color:alreadyLocked?'#3db06a':selectedSpotId?C.cream:C.dim,
-              fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
-              letterSpacing:'0.08em',cursor:selectedSpotId?'pointer':'not-allowed',
-              WebkitTapHighlightColor:'transparent',whiteSpace:'nowrap',
-            }}>
-              {alreadyLocked ? '✓ TEMPO SET' : 'SET TEMPO'}
-            </button>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-              fontSize:'0.72rem',color: metroWaiting ? '#4a9eff' : C.muted,
-              lineHeight:1.3,transition:'color 0.2s',paddingLeft:1}}>
-              {metroWaiting
-                ? `▶ play, then set tempo for spot ${selectedSpotId}`
-                : interleavedSpots.length===0
-                ? 'Tap score to place spots (3–7)'
-                : interleavedSpots.length<3
-                ? `${interleavedSpots.length} spot${interleavedSpots.length!==1?'s':''} placed — need 3 to start`
-                : `${interleavedSpots.length} spot${interleavedSpots.length!==1?'s':''} — tap a spot to select`}
-            </div>
+          <button onClick={lockIn} disabled={!selectedSpotId} style={{
+            flexShrink:0,padding:'5px 10px',
+            background:alreadyLocked?'rgba(61,176,106,0.18)':'#2a231d',
+            border:`1px solid ${alreadyLocked?'#3db06a':selectedSpotId?C.bord2:C.bord}`,
+            color:alreadyLocked?'#3db06a':selectedSpotId?C.cream:C.dim,
+            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+            letterSpacing:'0.08em',cursor:selectedSpotId?'pointer':'not-allowed',
+            WebkitTapHighlightColor:'transparent',whiteSpace:'nowrap',
+          }}>
+            {alreadyLocked ? '✓ TEMPO SET' : 'SET TEMPO'}
+          </button>
+          <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+            fontSize:'0.72rem',color: metroWaiting ? '#4a9eff' : C.muted,
+            lineHeight:1.3,transition:'color 0.2s',minWidth:0}}>
+            {metroWaiting
+              ? `▶ then set for spot ${selectedSpotId}`
+              : interleavedSpots.length===0
+              ? 'tap score to place spots'
+              : interleavedSpots.length<3
+              ? `${interleavedSpots.length} placed — need ${3-interleavedSpots.length} more`
+              : `${interleavedSpots.length} spots — tap to select`}
           </div>
         </div>
 
@@ -1307,13 +1312,15 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
           </div>
         )}
 
-        {/* Score — floating arrows over it, same as normal score view */}
-        <div style={{flex:'1 1 0',minHeight:0,overflowY:'auto',
-          background:'#0a0805',WebkitOverflowScrolling:'touch',position:'relative'}}>
-          <div style={{position:'relative',width:'100%'}}>
+        {/* Score — no scroll, image constrained to available height */}
+        <div style={{flex:'1 1 0',minHeight:0,overflow:'hidden',
+          background:'#0a0805',position:'relative',
+          display:'flex',alignItems:'flex-start',justifyContent:'center'}}>
+          <div style={{position:'relative',height:'100%',display:'flex',alignItems:'flex-start'}}>
             <img data-page={currentPage} src={pageImages[currentPage]}
               onClick={handleTap}
-              style={{width:'100%',height:'auto',display:'block',
+              style={{height:'100%',width:'auto',maxWidth:'100vw',display:'block',
+                objectFit:'contain',objectPosition:'top center',
                 userSelect:'none',WebkitUserSelect:'none',cursor:'crosshair'}}
               onContextMenu={e=>e.preventDefault()} draggable={false} />
             {spotsOnPage.map(spot=>(
