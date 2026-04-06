@@ -400,7 +400,7 @@ export default function App() {
       {/* Score view — home base for a piece */}
       {screen==='score' && (
         <ScoreViewScreen
-          piece={piece} pageImages={pageImages}
+          piece={piece} pageImages={pageImages} profile={profile}
           currentPage={currentPage} setCurrentPage={setCurrentPage}
           sessionMode={sessionMode} setSessionMode={s=>{
             setSessionMode(s);
@@ -1096,13 +1096,103 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
 ═══════════════════════════════════════════════════════════════════════ */
 function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   sessionMode, setSessionMode, interleavedSpots, onRemoveSpot, onBpmChange, onStartSession,
-  locateEx, onBack, onTapPassage }) {
+  locateEx, onBack, onTapPassage, profile }) {
 
   const land = useOrientation();
   const totalPages = pageImages.length;
   const showTwo = land && totalPages > 1;
   const rightPage = currentPage + 1 < totalPages ? currentPage + 1 : null;
   const [showHint, setShowHint] = useState(true);
+
+  // Practice spots with log summaries
+  const [practiceSpots, setPracticeSpots] = useState([]);
+  const [draggingSpot, setDraggingSpot] = useState(null);
+  const dragStartRef = useRef(null);
+
+  useEffect(()=>{
+    if(!profile?.email || !piece?.id) return;
+    (async ()=>{
+      try {
+        const sr = await sbGet(`/rest/v1/practice_spots?user_email=eq.${encodeURIComponent(profile.email)}&piece_id=eq.${piece.id}`);
+        const spots = await sr.json()||[];
+        if(!spots.length) { setPracticeSpots([]); return; }
+        // Fetch logs to compute progress per spot
+        const lr = await sbGet(`/rest/v1/practice_logs?user_email=eq.${encodeURIComponent(profile.email)}&piece_id=eq.${piece.id}&order=session_date.desc`);
+        const logs = await lr.json()||[];
+        const merged = spots.map(s => {
+          const spotLogs = logs.filter(l=>l.spot_id===s.id);
+          const bestTempo = spotLogs.reduce((mx,l)=>Math.max(mx,l.max_tempo||0),0);
+          const pct = (s.perf_tempo && s.start_tempo && bestTempo && s.perf_tempo > s.start_tempo)
+            ? Math.round(((bestTempo - s.start_tempo) / (s.perf_tempo - s.start_tempo)) * 100) : null;
+          return { ...s, best_tempo: bestTempo, pct_complete: pct,
+            total_sessions: spotLogs.length, last_practiced: spotLogs[0]?.session_date||null };
+        });
+        setPracticeSpots(merged);
+      } catch(e) { console.error('spot fetch failed', e); }
+    })();
+  },[piece?.id]);
+
+  const handleDotDragStart = (e, spot) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const touch = e.touches?.[0] || e;
+    dragStartRef.current = { spotId: spot.id, startX: touch.clientX, startY: touch.clientY,
+      origOx: spot.visual_offset_x||0, origOy: spot.visual_offset_y||0 };
+    setDraggingSpot(spot.id);
+  };
+
+  const handleDotDragMove = useCallback((e) => {
+    if(!dragStartRef.current) return;
+    const touch = e.touches?.[0] || e;
+    const container = document.querySelector('[data-score-container]');
+    if(!container) return;
+    const rect = container.getBoundingClientRect();
+    const dx = touch.clientX - dragStartRef.current.startX;
+    const dy = touch.clientY - dragStartRef.current.startY;
+    setPracticeSpots(prev => prev.map(s =>
+      s.id === dragStartRef.current.spotId
+        ? { ...s, visual_offset_x: dragStartRef.current.origOx + dx/rect.width,
+                   visual_offset_y: dragStartRef.current.origOy + dy/rect.height }
+        : s
+    ));
+  },[]);
+
+  const handleDotDragEnd = useCallback(()=>{
+    if(!dragStartRef.current) return;
+    const spotId = dragStartRef.current.spotId;
+    const spot = practiceSpots.find(s=>s.id===spotId);
+    if(spot) {
+      sbPatch(`/rest/v1/practice_spots?id=eq.${spotId}`, {
+        visual_offset_x: spot.visual_offset_x||0,
+        visual_offset_y: spot.visual_offset_y||0,
+      }).catch(()=>{});
+    }
+    dragStartRef.current = null;
+    setDraggingSpot(null);
+  },[practiceSpots]);
+
+  // Document-level mouse handlers for dot dragging
+  useEffect(()=>{
+    if(!draggingSpot) return;
+    const onMove = (e) => {
+      if(!dragStartRef.current) return;
+      const container = document.querySelector('[data-score-container]');
+      if(!container) return;
+      const rect = container.getBoundingClientRect();
+      const dx = e.clientX - dragStartRef.current.startX;
+      const dy = e.clientY - dragStartRef.current.startY;
+      setPracticeSpots(prev => prev.map(s =>
+        s.id === dragStartRef.current.spotId
+          ? { ...s, visual_offset_x: dragStartRef.current.origOx + dx/rect.width,
+                     visual_offset_y: dragStartRef.current.origOy + dy/rect.height }
+          : s
+      ));
+    };
+    const onUp = () => handleDotDragEnd();
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return ()=>{ document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  },[draggingSpot, handleDotDragEnd]);
   const isInterleaved = sessionMode === 'interleaved';
 
   const handleTap = e => {
@@ -1324,8 +1414,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         </div>
       )}
 
-      {/* Score — full remaining height, nav arrows and hint float over it */}
-      <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',position:'relative'}}>
+      <div data-score-container style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',position:'relative'}}>
 
         {/* Floating hint toast — dismissible, only on first view */}
         {showHint && !locateEx && (
@@ -1394,6 +1483,39 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
               onSelect={id=>setSelectedSpotId(id)}
             />
           ))}
+          {/* Practice log dots */}
+          {!isInterleaved && !locateEx && practiceSpots.filter(s=>s.score_page===currentPage).map(spot=>{
+            const ox = spot.visual_offset_x||0;
+            const oy = spot.visual_offset_y||0;
+            const pct = spot.pct_complete!=null ? Math.min(100,Number(spot.pct_complete)) : null;
+            const color = pct===null ? '#4a9eff' : pct>=100 ? '#3db06a' : pct>=50 ? '#e5a835' : C.accent;
+            const isDragging = draggingSpot === spot.id;
+            return (
+              <div key={spot.id}
+                onTouchStart={e=>handleDotDragStart(e,spot)}
+                onTouchMove={handleDotDragMove}
+                onTouchEnd={handleDotDragEnd}
+                onMouseDown={e=>handleDotDragStart(e,spot)}
+                onClick={e=>{e.stopPropagation();
+                  onTapPassage({page:spot.score_page,x:spot.score_x,y:spot.score_y});}}
+                style={{
+                  position:'absolute',
+                  left:`${(spot.score_x+ox)*100}%`,
+                  top:`${(spot.score_y+oy)*100}%`,
+                  transform:'translate(-50%,-50%)',
+                  width:isDragging?20:14, height:isDragging?20:14,
+                  borderRadius:'50%',
+                  background:color, border:'2px solid white',
+                  boxShadow:`0 1px 4px rgba(0,0,0,0.5)${isDragging?',0 0 0 4px rgba(255,255,255,0.3)':''}`,
+                  cursor:'pointer', zIndex:isDragging?30:15,
+                  transition:isDragging?'none':'width 0.15s,height 0.15s',
+                  WebkitTapHighlightColor:'transparent',
+                  touchAction:'none',
+                }}
+                title={spot.label||`${spot.total_sessions||0} sessions`}
+              />
+            );
+          })}
         </div>
         {showTwo && rightPage!==null && (
           <div style={{position:'relative',flex:1,minWidth:0,
