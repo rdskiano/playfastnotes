@@ -357,6 +357,7 @@ export default function App() {
   const [showOverlay,setShowOverlay]   = useState(false);
   const [locateEx,setLocateEx]         = useState(null);
   const [locateResult,setLocateResult] = useState(null); // 'ok' | 'fail' | error string
+  const [scuSpot,setScuSpot]           = useState(null); // spot data for Slow Click Up
   const N = markers.length;
 
   const saveProf = p => { setProfile(p); setProfileState(p); };
@@ -471,6 +472,15 @@ export default function App() {
             setSavedExercise(ex||null);
             setScreen('mur');
           }}
+          onSCU={()=>{
+            setShowOverlay(false);
+            setScuSpot({page:tapPos.page,x:tapPos.x,y:tapPos.y,piece_id:piece?.id||null});
+            setScreen('scu');
+          }}
+          onViewLog={()=>{
+            setShowOverlay(false);
+            setScreen('spot-log');
+          }}
         />
       )}
 
@@ -518,6 +528,27 @@ export default function App() {
           pageImages={pageImages}
           spots={interleavedSpots}
           onBack={()=>{ setInterleavedSpots([]); setSessionMode('massed'); setScreen('score'); }}
+        />
+      )}
+
+      {screen==='scu' && (
+        <SlowClickUpScreen
+          profile={profile}
+          piece={piece}
+          pageImages={pageImages}
+          tapPos={tapPos}
+          scuSpot={scuSpot}
+          onBack={()=>setScreen('score')}
+          onDone={()=>setScreen('score')}
+        />
+      )}
+
+      {screen==='spot-log' && (
+        <SpotLogScreen
+          profile={profile}
+          piece={piece}
+          tapPos={tapPos}
+          onBack={()=>setScreen('score')}
         />
       )}
 
@@ -592,6 +623,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
   const [tab,setTab]             = useState('pieces');
   const [pieces,setPieces]       = useState([]);
   const [exercises,setExercises] = useState([]);
+  const [logs,setLogs]           = useState([]);
   const [loading,setLoading]     = useState(true);
   const [showUpload,setShowUpload] = useState(false);
   const [title,setTitle]         = useState('');
@@ -627,13 +659,15 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [rp, re] = await Promise.all([
+      const [rp, re, rl] = await Promise.all([
         sbGet(`/rest/v1/pieces?user_email=eq.${encodeURIComponent(profile.email)}&order=composer.asc,title.asc`),
         sbGet(`/rest/v1/exercises?user_email=eq.${encodeURIComponent(profile.email)}&order=created_at.desc`),
+        sbGet(`/rest/v1/practice_logs?user_email=eq.${encodeURIComponent(profile.email)}&order=session_date.desc,created_at.desc&limit=100`),
       ]);
       setPieces(await rp.json()||[]);
       setExercises(await re.json()||[]);
-    } catch { setPieces([]); setExercises([]); }
+      setLogs(await rl.json()||[]);
+    } catch { setPieces([]); setExercises([]); setLogs([]); }
     setLoading(false);
   };
 
@@ -792,7 +826,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
       {/* Tabs */}
       <div style={{display:'flex',borderBottom:`1px solid ${C.bord}`,flexShrink:0,background:C.ink}}>
         <button style={tabStyle(tab==='pieces')} onClick={()=>{setTab('pieces');setSearch('');}}>Repertoire</button>
-        <button style={tabStyle(tab==='exercises')} onClick={()=>{setTab('exercises');setSearch('');}}>Exercises</button>
+        <button style={tabStyle(tab==='log')} onClick={()=>{setTab('log');setSearch('');}}>Practice Log</button>
       </div>
 
       {/* Locate result toast */}
@@ -995,53 +1029,61 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
           </>
         )}
 
-        {tab==='exercises' && (
+        {tab==='log' && (
           <>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-              fontSize:'0.9rem',color:C.muted,padding:'4px 0 12px',lineHeight:1.4}}>
-              Exercises without a score location. Tap 📍 to link one to a spot in your repertoire.
-            </div>
             {loading && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:C.muted,textAlign:'center',padding:40}}>Loading...</div>}
-            {!loading && exercises.filter(ex=>ex.score_page==null&&ex.score_y==null).length===0 && (
+            {!loading && logs.length===0 && (
               <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.1rem'}}>
-                {exercises.length>0 ? 'All exercises have been located — access them by tapping their spot in the score' : 'No saved exercises yet'}
+                No practice sessions logged yet. Start practicing a spot to build your log!
               </div>
             )}
-            {exercises
-              .filter(ex=> (ex.score_page == null && ex.score_y == null)) // only unlocated
-              .filter(ex=>!q||(ex.doc_name||'').toLowerCase().includes(q)||(ex.instrument||'').toLowerCase().includes(q))
-              .map(ex=>{
-              const isLocated = ex.score_page != null || ex.score_y != null;
-              return (
-              <div key={ex.id}
-                style={{display:'flex',alignItems:'center',borderBottom:`1px solid ${C.bord}`,
-                  background:'transparent',transition:'background 0.1s'}}
-                onMouseEnter={e=>e.currentTarget.style.background=C.panel}
-                onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                <div onClick={()=>onLoadExercise(ex)}
-                  style={{flex:1,padding:'14px 14px',cursor:'pointer',minWidth:0}}>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
-                    letterSpacing:'0.08em',color:C.cream}}>{ex.doc_name||'Untitled'}</div>
-                  <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
-                    color:C.muted,marginTop:3}}>
-                    {[ex.instrument,ex.grouping].filter(Boolean).join(' · ')}
+            {!loading && (() => {
+              // Group logs by session_date
+              const byDate = {};
+              logs.forEach(l => {
+                const d = l.session_date || 'Unknown';
+                if(!byDate[d]) byDate[d]=[];
+                byDate[d].push(l);
+              });
+              return Object.entries(byDate).map(([date, dayLogs]) => (
+                <div key={date} style={{marginBottom:12}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+                    letterSpacing:'0.22em',color:C.muted,padding:'10px 4px 5px',
+                    borderBottom:`1px solid ${C.bord}`}}>
+                    {new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}
                   </div>
+                  {dayLogs.map(l => {
+                    const p = pieces.find(p=>String(p.id)===String(l.piece_id));
+                    const pct = (l.perf_tempo && l.start_tempo && l.max_tempo && l.perf_tempo > l.start_tempo)
+                      ? Math.round(((l.max_tempo - l.start_tempo) / (l.perf_tempo - l.start_tempo)) * 100)
+                      : null;
+                    return (
+                      <div key={l.id} style={{padding:'12px 14px',borderBottom:`1px solid ${C.bord}`,
+                        display:'flex',alignItems:'center',gap:12}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.95rem',
+                            letterSpacing:'0.08em',color:C.cream}}>
+                            {l.strategy?.toUpperCase()||'PRACTICE'} {p ? `— ${p.title}` : ''}
+                          </div>
+                          <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+                            color:C.muted,marginTop:3}}>
+                            {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
+                            {l.perf_tempo ? ` (goal: ${l.perf_tempo})` : ''}
+                            {l.reps_clean ? ` · ${l.reps_clean} clean reps` : ''}
+                          </div>
+                        </div>
+                        {pct !== null && (
+                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
+                            color:pct>=100?'#3db06a':C.accent,flexShrink:0}}>
+                            {Math.min(pct,100)}%
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                <button
-                  onClick={e=>{e.stopPropagation();openLocate(ex);}}
-                  style={{padding:'10px 12px',background:'none',border:'none',
-                    color:C.gold,cursor:'pointer',fontSize:'1.1rem',flexShrink:0,
-                    WebkitTapHighlightColor:'transparent'}}
-                  title="Locate in score">📍</button>
-                <button
-                  onClick={e=>{e.stopPropagation();setConfirmDel({type:'exercise',id:ex.id,title:ex.doc_name||'Untitled',...ex});}}
-                  style={{padding:'14px 16px',background:'none',border:'none',
-                    color:'#555',cursor:'pointer',fontSize:'1.1rem',flexShrink:0,
-                    WebkitTapHighlightColor:'transparent'}}
-                  title="Delete">✕</button>
-              </div>
-              );
-            })}
+              ));
+            })()}
           </>
         )}
       </div>
@@ -1764,7 +1806,7 @@ function ExerciseCard({ ex, confirmDelete, setConfirmDelete, deleting, onDelete,
 /* ═══════════════════════════════════════════════════════════════════════
    STRATEGY OVERLAY — floating panel over score
 ═══════════════════════════════════════════════════════════════════════ */
-function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
+function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV, onSCU, onViewLog }) {
   const [panel, setPanel] = useState('strategies');
   const [nearby, setNearby] = useState([]);
   const [unlocated, setUnlocated] = useState([]);
@@ -1900,6 +1942,32 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV }) {
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
                 fontSize:'1.05rem',color:C.cream,lineHeight:1.5}}>
                 Practice your passage in every rhythm pattern — a complete systematic workout.
+              </div>
+            </button>
+
+            {/* SCU card */}
+            <button style={{...cardBase,border:`2px solid #3db06a`,background:'transparent'}}
+              onClick={onSCU}
+              onMouseEnter={e=>e.currentTarget.style.background=C.panel}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',
+                letterSpacing:'0.12em',color:'#3db06a'}}>SLOW CLICK-UP</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                fontSize:'1.05rem',color:C.cream,lineHeight:1.5}}>
+                Nail 10 clean reps before advancing tempo. Track your progress over time.
+              </div>
+            </button>
+
+            {/* Practice Log link */}
+            <button style={{...cardBase,border:`1px solid ${C.bord2}`,background:'transparent'}}
+              onClick={onViewLog}
+              onMouseEnter={e=>e.currentTarget.style.background=C.panel}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
+                letterSpacing:'0.12em',color:C.muted}}>📋 PRACTICE LOG FOR THIS SPOT</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                fontSize:'0.95rem',color:C.muted,lineHeight:1.5}}>
+                View your practice history and tempo progress here.
               </div>
             </button>
           </div>
@@ -3308,6 +3376,407 @@ function AllExercisesView({ exercises, selNotes, clef, murKey, playingIdx, onPla
 /* ═══════════════════════════════════════════════════════════════════════
    ICU — MARKER SCREEN
 ═══════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════
+   SLOW CLICK-UP SESSION
+═══════════════════════════════════════════════════════════════════════ */
+function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack, onDone }) {
+  const [bpm, setBpm]               = useState(60);
+  const [perfTempo, setPerfTempo]   = useState(120);
+  const [streak, setStreak]         = useState(0);
+  const [metroOn, setMetroOn]       = useState(false);
+  const [phase, setPhase]           = useState('setup'); // 'setup' | 'practice'
+  const [maxTempo, setMaxTempo]     = useState(60);
+  const [totalReps, setTotalReps]   = useState(0);
+  const [cleanReps, setCleanReps]   = useState(0);
+  const [sessionStart]              = useState(Date.now);
+  const [incSize, setIncSize]       = useState(5);
+  const [showComplete, setShowComplete] = useState(false);
+  const [spotId, setSpotId]         = useState(null);
+  const metro = useRef(new Metro());
+  const bpmTimerRef    = useRef(null);
+  const bpmIntervalRef = useRef(null);
+
+  useEffect(()=>()=>metro.current.stop(),[]);
+  useEffect(()=>{if(metroOn)metro.current.start(bpm);else metro.current.stop();},[metroOn]);
+  useEffect(()=>{metro.current.setBpm(bpm);},[bpm]);
+
+  // Load or create spot on mount
+  useEffect(()=>{
+    (async ()=>{
+      if(!profile?.email || !scuSpot) return;
+      try {
+        // Look for existing spot near this tap
+        const r = await sbGet(`/rest/v1/practice_spots?user_email=eq.${encodeURIComponent(profile.email)}&piece_id=eq.${scuSpot.piece_id}&score_page=eq.${scuSpot.page}&order=created_at.desc`);
+        const spots = await r.json()||[];
+        const match = spots.find(s=> Math.abs(s.score_y - scuSpot.y) < 0.15);
+        if(match) {
+          setSpotId(match.id);
+          if(match.start_tempo) setBpm(match.start_tempo);
+          if(match.perf_tempo) setPerfTempo(match.perf_tempo);
+          if(match.start_tempo) setMaxTempo(match.start_tempo);
+        }
+      } catch(e){ console.error('spot lookup failed', e); }
+    })();
+  },[]);
+
+  const startSession = async () => {
+    setPhase('practice');
+    setMaxTempo(bpm);
+    // Create or update spot
+    if(!spotId && profile?.email) {
+      try {
+        const r = await sbPost('/rest/v1/practice_spots', {
+          user_email: profile.email,
+          piece_id: scuSpot?.piece_id||null,
+          score_page: scuSpot?.page??0,
+          score_x: scuSpot?.x??0.5,
+          score_y: scuSpot?.y??0.5,
+          start_tempo: bpm,
+          perf_tempo: perfTempo,
+        });
+        const rows = await r.json();
+        if(rows?.[0]?.id) setSpotId(rows[0].id);
+      } catch(e){ console.error('spot create failed', e); }
+    } else if(spotId) {
+      sbPatch(`/rest/v1/practice_spots?id=eq.${spotId}`, {
+        start_tempo: bpm, perf_tempo: perfTempo,
+      }).catch(()=>{});
+    }
+  };
+
+  const handleRep = (clean) => {
+    setTotalReps(t=>t+1);
+    if(clean) {
+      setCleanReps(c=>c+1);
+      const newStreak = streak + 1;
+      setStreak(newStreak);
+      if(newStreak >= 10) {
+        // Completed! Show increment picker
+        if(bpm > maxTempo) setMaxTempo(bpm);
+        setShowComplete(true);
+        setMetroOn(false);
+      }
+    } else {
+      setStreak(0);
+    }
+  };
+
+  const advanceTempo = (inc) => {
+    const newBpm = bpm + inc;
+    setBpm(newBpm);
+    if(newBpm > maxTempo) setMaxTempo(newBpm);
+    setStreak(0);
+    setShowComplete(false);
+  };
+
+  const saveAndExit = async () => {
+    metro.current.stop();
+    if(profile?.email) {
+      try {
+        await sbPost('/rest/v1/practice_logs', {
+          user_email: profile.email,
+          spot_id: spotId||null,
+          piece_id: scuSpot?.piece_id||null,
+          strategy: 'scu',
+          start_tempo: bpm <= maxTempo ? bpm : null,
+          max_tempo: maxTempo,
+          perf_tempo: perfTempo,
+          reps_total: totalReps,
+          reps_clean: cleanReps,
+          duration_sec: Math.round((Date.now() - sessionStart()) / 1000),
+        });
+      } catch(e){ console.error('log save failed', e); }
+    }
+    onDone();
+  };
+
+  const pct = (perfTempo > bpm) ? Math.round(((maxTempo - (bpm <= maxTempo ? bpm : maxTempo)) / (perfTempo - (bpm <= maxTempo ? bpm : maxTempo || 1))) * 100) : null;
+
+  const adjustBpm = delta => setBpm(b=>Math.max(20,Math.min(300,b+delta)));
+  const adjustPerf = delta => setPerfTempo(b=>Math.max(20,Math.min(400,b+delta)));
+
+  const makePress = (fn) => ({
+    onMouseDown:()=>{fn();bpmTimerRef.current=setTimeout(()=>{bpmIntervalRef.current=setInterval(fn,80);},500);},
+    onMouseUp:()=>{clearTimeout(bpmTimerRef.current);clearInterval(bpmIntervalRef.current);},
+    onMouseLeave:()=>{clearTimeout(bpmTimerRef.current);clearInterval(bpmIntervalRef.current);},
+    onTouchStart:e=>{e.preventDefault();fn();bpmTimerRef.current=setTimeout(()=>{bpmIntervalRef.current=setInterval(fn,80);},500);},
+    onTouchEnd:()=>{clearTimeout(bpmTimerRef.current);clearInterval(bpmIntervalRef.current);},
+  });
+
+  const bpmBtn = {
+    background:'#2a231d',border:`1px solid ${C.bord2}`,color:C.cream,
+    width:40,height:40,cursor:'pointer',userSelect:'none',flexShrink:0,
+    fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
+    display:'flex',alignItems:'center',justifyContent:'center',
+    WebkitTapHighlightColor:'transparent',
+  };
+
+  if(phase === 'setup') {
+    return (
+      <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
+        <TopBar left={<BackBtn onClick={onBack}/>} center="SLOW CLICK-UP" right={null}/>
+        <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'center',
+          gap:28,padding:'24px 24px',maxWidth:400,margin:'0 auto',width:'100%'}}>
+
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+            fontSize:'1.1rem',color:C.cream,lineHeight:1.6,textAlign:'center'}}>
+            Set your starting tempo and performance goal, then nail 10 clean reps to advance.
+          </div>
+
+          <div style={{display:'flex',flexDirection:'column',gap:20}}>
+            <div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+                letterSpacing:'0.2em',color:'#3db06a',marginBottom:8}}>STARTING TEMPO</div>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <button style={bpmBtn} {...makePress(()=>adjustBpm(-1))}>−</button>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.2rem',
+                  color:C.cream,minWidth:90,textAlign:'center'}}>♩ = {bpm}</div>
+                <button style={bpmBtn} {...makePress(()=>adjustBpm(1))}>+</button>
+              </div>
+            </div>
+
+            <div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+                letterSpacing:'0.2em',color:C.accent,marginBottom:8}}>PERFORMANCE TEMPO</div>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <button style={bpmBtn} {...makePress(()=>adjustPerf(-1))}>−</button>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.2rem',
+                  color:C.cream,minWidth:90,textAlign:'center'}}>♩ = {perfTempo}</div>
+                <button style={bpmBtn} {...makePress(()=>adjustPerf(1))}>+</button>
+              </div>
+            </div>
+
+            <div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+                letterSpacing:'0.2em',color:C.muted,marginBottom:8}}>INCREMENT</div>
+              <div style={{display:'flex',gap:8}}>
+                {[2,5,10].map(n=>(
+                  <button key={n} onClick={()=>setIncSize(n)} style={{
+                    flex:1,padding:'10px 0',
+                    background:incSize===n?'#3db06a':'#2a231d',
+                    border:`1px solid ${incSize===n?'#3db06a':C.bord2}`,
+                    color:incSize===n?'white':C.cream,
+                    fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                    letterSpacing:'0.1em',cursor:'pointer',
+                    WebkitTapHighlightColor:'transparent',
+                  }}>+{n}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <button onClick={startSession} style={{
+            padding:'14px 0',background:'#3db06a',border:'none',color:'white',
+            fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
+            letterSpacing:'0.12em',cursor:'pointer',
+            WebkitTapHighlightColor:'transparent',
+          }}>START PRACTICING →</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Practice phase
+  const streakDots = range(0,10).map(i=>(
+    <div key={i} style={{
+      width:20,height:20,borderRadius:'50%',
+      background:i<streak?'#3db06a':'#2a231d',
+      border:`2px solid ${i<streak?'#3db06a':'#444'}`,
+      transition:'background 0.15s,border-color 0.15s',
+    }}/>
+  ));
+
+  const progressPct = perfTempo > bpm ? Math.min(100, Math.round(((maxTempo - bpm) / (perfTempo - bpm)) * 100)) : (maxTempo >= perfTempo ? 100 : 0);
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
+      {/* Top bar */}
+      <div style={{flexShrink:0,borderBottom:`2px solid #3db06a`,background:C.ink,
+        padding:'8px 14px',display:'flex',alignItems:'center',gap:10}}>
+        <BackBtn onClick={saveAndExit} label="← EXIT"/>
+        <div style={{flex:1}}/>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.8rem',
+          letterSpacing:'0.12em',color:C.muted}}>
+          {totalReps} reps · {cleanReps} clean
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{height:4,background:C.bord,flexShrink:0}}>
+        <div style={{height:'100%',background:'#3db06a',width:`${progressPct}%`,transition:'width 0.3s'}}/>
+      </div>
+
+      {/* Main content */}
+      <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',
+        justifyContent:'center',gap:20,padding:'20px 24px',position:'relative'}}>
+
+        {/* Tempo display */}
+        <div style={{textAlign:'center'}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+            letterSpacing:'0.2em',color:C.muted,marginBottom:4}}>CURRENT TEMPO</div>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",
+            fontSize:'clamp(2.5rem,10vw,4rem)',color:C.cream,lineHeight:1}}>
+            ♩ = {bpm}
+          </div>
+          <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+            color:C.muted,marginTop:4}}>goal: {perfTempo}</div>
+        </div>
+
+        {/* Metronome toggle */}
+        <button onClick={()=>setMetroOn(m=>!m)} style={{
+          background:metroOn?'#3db06a':'#2a231d',
+          border:`2px solid ${metroOn?'#3db06a':'#666'}`,
+          color:'white',width:56,height:56,cursor:'pointer',
+          fontSize:'1.4rem',display:'flex',alignItems:'center',justifyContent:'center',
+          WebkitTapHighlightColor:'transparent',
+          transition:'background 0.2s',
+        }}>{metroOn?'⏸':'▶'}</button>
+
+        {/* Streak counter */}
+        <div style={{textAlign:'center'}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+            letterSpacing:'0.2em',color:'#3db06a',marginBottom:8}}>
+            CLEAN STREAK: {streak} / 10
+          </div>
+          <div style={{display:'flex',gap:6,justifyContent:'center'}}>
+            {streakDots}
+          </div>
+        </div>
+
+        {/* Clean / Miss buttons */}
+        {!showComplete && (
+          <div style={{display:'flex',gap:16,marginTop:8}}>
+            <button onClick={()=>handleRep(true)} style={{
+              padding:'16px 36px',background:'#3db06a',border:'none',color:'white',
+              fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
+              letterSpacing:'0.1em',cursor:'pointer',
+              WebkitTapHighlightColor:'transparent',
+            }}>✓ CLEAN</button>
+            <button onClick={()=>handleRep(false)} style={{
+              padding:'16px 36px',background:'#e53535',border:'none',color:'white',
+              fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
+              letterSpacing:'0.1em',cursor:'pointer',
+              WebkitTapHighlightColor:'transparent',
+            }}>✗ MISS</button>
+          </div>
+        )}
+
+        {/* Completed 10! Increment picker */}
+        {showComplete && (
+          <div style={{textAlign:'center',display:'flex',flexDirection:'column',gap:14,
+            background:C.panel,border:`2px solid #3db06a`,padding:'20px 24px',
+            maxWidth:340,width:'100%'}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
+              letterSpacing:'0.12em',color:'#3db06a'}}>
+              10 CLEAN REPS! 🎉
+            </div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+              fontSize:'1rem',color:C.cream}}>
+              Advance tempo or stay here?
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              {[2,5,10].map(n=>(
+                <button key={n} onClick={()=>advanceTempo(n)} style={{
+                  flex:1,padding:'12px 0',
+                  background:n===incSize?'#3db06a':'#2a231d',
+                  border:`1px solid ${n===incSize?'#3db06a':C.bord2}`,
+                  color:n===incSize?'white':C.cream,
+                  fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                  letterSpacing:'0.1em',cursor:'pointer',
+                  WebkitTapHighlightColor:'transparent',
+                }}>+{n}</button>
+              ))}
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>{setStreak(0);setShowComplete(false);}} style={{
+                flex:1,padding:'10px 0',background:'transparent',
+                border:`1px solid ${C.bord2}`,color:C.muted,
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+                letterSpacing:'0.1em',cursor:'pointer',
+              }}>STAY AT {bpm}</button>
+              <button onClick={saveAndExit} style={{
+                flex:1,padding:'10px 0',background:C.accent,border:'none',color:'white',
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+                letterSpacing:'0.1em',cursor:'pointer',
+              }}>DONE FOR TODAY</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SPOT LOG — practice history for a specific spot
+═══════════════════════════════════════════════════════════════════════ */
+function SpotLogScreen({ profile, piece, tapPos, onBack }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    (async ()=>{
+      if(!profile?.email) return;
+      try {
+        // Fetch logs for this piece, filtering by proximity client-side
+        const r = await sbGet(`/rest/v1/practice_logs?user_email=eq.${encodeURIComponent(profile.email)}&piece_id=eq.${piece?.id||''}&order=session_date.desc,created_at.desc&limit=50`);
+        const all = await r.json()||[];
+        // Also try to find matching spot for more precise filtering
+        const sr = await sbGet(`/rest/v1/practice_spots?user_email=eq.${encodeURIComponent(profile.email)}&piece_id=eq.${piece?.id||''}&score_page=eq.${tapPos?.page??0}`);
+        const spots = await sr.json()||[];
+        const nearSpot = spots.find(s=> Math.abs(s.score_y - (tapPos?.y||0)) < 0.15);
+
+        if(nearSpot) {
+          setLogs(all.filter(l=>l.spot_id===nearSpot.id));
+        } else {
+          setLogs(all);
+        }
+      } catch { setLogs([]); }
+      setLoading(false);
+    })();
+  },[]);
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
+      <TopBar left={<BackBtn onClick={onBack}/>} center="PRACTICE LOG" right={null}/>
+      <div style={{flex:'1 1 0',overflowY:'auto',padding:16}}>
+        {loading && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:C.muted,textAlign:'center',padding:40}}>Loading...</div>}
+        {!loading && logs.length===0 && (
+          <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.1rem'}}>
+            No practice sessions for this spot yet.
+          </div>
+        )}
+        {!loading && logs.map(l=>{
+          const pct = (l.perf_tempo && l.start_tempo && l.max_tempo && l.perf_tempo > l.start_tempo)
+            ? Math.min(100, Math.round(((l.max_tempo - l.start_tempo) / (l.perf_tempo - l.start_tempo)) * 100))
+            : null;
+          return (
+            <div key={l.id} style={{padding:'14px 4px',borderBottom:`1px solid ${C.bord}`,
+              display:'flex',alignItems:'center',gap:12}}>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+                  letterSpacing:'0.1em',color:C.cream}}>
+                  {new Date(l.session_date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
+                  <span style={{color:C.muted,marginLeft:8,fontSize:'0.8rem'}}>{l.strategy?.toUpperCase()}</span>
+                </div>
+                <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.muted,marginTop:3}}>
+                  {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
+                  {l.reps_clean ? ` · ${l.reps_clean} clean / ${l.reps_total} total` : ''}
+                  {l.duration_sec ? ` · ${Math.round(l.duration_sec/60)}min` : ''}
+                </div>
+              </div>
+              {pct !== null && (
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
+                  color:pct>=100?'#3db06a':C.accent,flexShrink:0}}>{pct}%</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers, setMarkers, onBack, onNext }) {
   const imgRef    = useRef();
   const canvasRef = useRef();
