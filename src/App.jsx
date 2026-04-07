@@ -98,6 +98,27 @@ const range = (a,b) => Array.from({length:b-a},(_,i)=>a+i);
 function getProfile() { try { return JSON.parse(localStorage.getItem('murProfile')||'{}'); } catch { return {}; } }
 function setProfile(p) { localStorage.setItem('murProfile', JSON.stringify(p)); }
 
+// Find or create a practice_spots record near a tap position
+async function findOrCreateSpot(email, pieceId, tapPos) {
+  if(!email || !pieceId || !tapPos) return null;
+  try {
+    const r = await sbGet(`/rest/v1/practice_spots?user_email=eq.${encodeURIComponent(email)}&piece_id=eq.${pieceId}&score_page=eq.${tapPos.page}&order=created_at.desc`);
+    const spots = await r.json()||[];
+    const match = spots.find(s => Math.abs(s.score_y - tapPos.y) < 0.15);
+    if(match) return match.id;
+    // Create new spot
+    const cr = await sbPost('/rest/v1/practice_spots', {
+      user_email: email,
+      piece_id: pieceId,
+      score_page: tapPos.page,
+      score_x: tapPos.x,
+      score_y: tapPos.y,
+    });
+    const rows = await cr.json();
+    return rows?.[0]?.id || null;
+  } catch(e) { console.error('findOrCreateSpot failed', e); return null; }
+}
+
 function useWindowHeight() {
   const getH = () => window.visualViewport ? window.visualViewport.height : window.innerHeight;
   const [h,setH] = useState(getH);
@@ -2431,6 +2452,18 @@ const INSTR_TRANSPOSE = {
 function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }) {
   const land = useOrientation();
   const isLarge = useIsLarge();
+  const [murSpotId, setMurSpotId] = useState(null);
+
+  // Find or create a spot for this tap position
+  useEffect(()=>{
+    (async ()=>{
+      const prof = profile || JSON.parse(localStorage.getItem('murProfile')||'{}');
+      if(prof.email && piece?.id && tapPos) {
+        const sid = await findOrCreateSpot(prof.email, piece.id, tapPos);
+        setMurSpotId(sid);
+      }
+    })();
+  },[]);
 
   // ── State ──────────────────────────────────────────────────────────
   const isLoadedExercise = !!savedExercise && !piece;
@@ -2732,6 +2765,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
       if(prof.email) {
         sbPost('/rest/v1/practice_logs', {
           user_email: prof.email,
+          spot_id: murSpotId,
           piece_id: piece?.id||null,
           strategy: 'mur',
           notes: `grouping: ${sec}, ${selNotes.length} notes`,
@@ -3031,6 +3065,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
       if(prof.email) {
         sbPost('/rest/v1/practice_logs', {
           user_email: prof.email,
+          spot_id: murSpotId,
           piece_id: piece?.id||null,
           strategy: 'mur',
           notes: `grouping: ${g2s(activeGroup)}, ${selNotes.length} notes, ${docName||'untitled'}`,
@@ -4173,30 +4208,35 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   const safeIdx  = Math.min(idx,steps.length-1);
   const step     = steps[safeIdx];
 
-  // Log practice session on mount
+  // Find or create spot, then log session start
+  const [icuSpotId, setIcuSpotId] = useState(null);
   useEffect(()=>{
-    try {
-      const prof = profile || JSON.parse(localStorage.getItem('murProfile')||'{}');
-      if(prof.email) {
+    (async ()=>{
+      try {
+        const prof = profile || JSON.parse(localStorage.getItem('murProfile')||'{}');
+        if(!prof.email) return;
+        const sid = await findOrCreateSpot(prof.email, piece?.id, tapPos);
+        setIcuSpotId(sid);
         sbPost('/rest/v1/practice_logs', {
           user_email: prof.email,
+          spot_id: sid,
           piece_id: piece?.id||null,
           strategy: 'icu',
           start_tempo: startTempo,
           perf_tempo: goalTempo,
           notes: `${N} units`,
         }).catch(()=>{});
-      }
-    } catch(e){}
+      } catch(e){}
+    })();
   },[]);
 
   const handleDone = () => {
-    // Log completion and return to score
     try {
       const prof = profile || JSON.parse(localStorage.getItem('murProfile')||'{}');
       if(prof.email) {
         sbPost('/rest/v1/practice_logs', {
           user_email: prof.email,
+          spot_id: icuSpotId,
           piece_id: piece?.id||null,
           strategy: 'icu',
           start_tempo: startTempo,
