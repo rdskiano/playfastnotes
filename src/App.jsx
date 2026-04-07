@@ -15,32 +15,33 @@ const sbPatch = (p, b) => fetch(SB_URL + p, { method:'PATCH', headers:{ ...SB_H,
    DESIGN SYSTEM
 ═══════════════════════════════════════════════════════════════════════ */
 const C = {
-  ink:'#1a1612', surf:'#110f0c', panel:'#1e1a15',
-  bord:'#2a231d', bord2:'#3a2e24',
-  accent:'#8b3a1a', accentH:'#a04520', gold:'#9a7010',
-  rule:'#c8b89a', cream:'#f5f0e8', mid:'#5a4e42',
-  muted:'rgba(245,240,232,0.55)', dim:'rgba(245,240,232,0.25)',
+  ink:'#ffffff', surf:'#f7f7f7', panel:'#ffffff',
+  bord:'#e8e8e8', bord2:'#d4d4d4',
+  accent:'#e0564b', accentH:'#c94a40', gold:'#b8860b',
+  rule:'#333', cream:'#1a1a1a', mid:'#999',
+  muted:'rgba(0,0,0,0.45)', dim:'rgba(0,0,0,0.18)',
+  green:'#2eaa57',
 };
 
 const FONTS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Bebas+Neue&family=Inconsolata:wght@400;600&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}
   html{height:-webkit-fill-available;}
-  body{height:-webkit-fill-available;font-family:'Cormorant Garamond',Georgia,serif;background:${C.ink};
+  body{height:-webkit-fill-available;font-family:'Cormorant Garamond',Georgia,serif;background:#f5f5f5;
     padding-top:env(safe-area-inset-top);overflow:hidden;}
   #root{height:100%;}
   input[type=number],input[type=text],input[type=email]{
-    background:${C.panel};color:${C.cream};border:1px solid ${C.bord};
-    padding:9px 12px;font-family:'Inconsolata',monospace;font-size:1rem;width:100%;}
-  input:focus{outline:1px solid ${C.accent};}
+    background:#fff;color:#1a1a1a;border:1px solid #d4d4d4;border-radius:8px;
+    padding:10px 14px;font-family:'Inconsolata',monospace;font-size:1rem;width:100%;}
+  input:focus{outline:2px solid ${C.accent};outline-offset:-1px;}
   input[type=number]{width:78px;text-align:center;}
   input[type=number]::-webkit-inner-spin-button,
   input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
   input[type=number]{-moz-appearance:textfield;}
-  select{appearance:none;-webkit-appearance:none;background:${C.panel};color:${C.cream};
-    border:1px solid ${C.bord};padding:9px 12px;font-family:'Inconsolata',monospace;
+  select{appearance:none;-webkit-appearance:none;background:#fff;color:#1a1a1a;
+    border:1px solid #d4d4d4;border-radius:8px;padding:10px 14px;font-family:'Inconsolata',monospace;
     font-size:0.9rem;width:100%;cursor:pointer;}
-  select:focus{outline:1px solid ${C.accent};}
+  select:focus{outline:2px solid ${C.accent};}
   button:focus{outline:none;}
 `;
 
@@ -52,10 +53,10 @@ const Btn = ({ children, onClick, active, disabled, big, full, style={} }) => (
     fontFamily:"'Bebas Neue',sans-serif", letterSpacing:'0.1em',
     fontSize: big?'1.05rem':'0.88rem', padding: big?'12px 20px':'9px 16px',
     width: full?'100%':undefined,
-    background: active?C.accent:disabled?'transparent':'#2a231d',
-    color: active?'white':disabled?C.dim:C.cream,
-    border:`1px solid ${active?C.accent:disabled?C.bord:'#555'}`,
-    borderRadius:0, cursor:disabled?'not-allowed':'pointer',
+    background: active?C.accent:disabled?'#f0f0f0':'#fff',
+    color: active?'white':disabled?'#bbb':'#333',
+    border:`1px solid ${active?C.accent:disabled?'#ddd':'#ccc'}`,
+    borderRadius:8, cursor:disabled?'not-allowed':'pointer',
     transition:'background 0.12s,color 0.12s,border-color 0.12s',
     userSelect:'none', WebkitTapHighlightColor:'transparent', ...style,
   }}>{children}</button>
@@ -63,7 +64,7 @@ const Btn = ({ children, onClick, active, disabled, big, full, style={} }) => (
 
 const BackBtn = ({ onClick, label='← BACK' }) => (
   <button onClick={onClick} style={{
-    background:'none',border:'none',color:C.cream,padding:0,
+    background:'none',border:'none',color:'#333',padding:0,
     fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
     letterSpacing:'0.1em',cursor:'pointer',
   }}>{label}</button>
@@ -81,11 +82,11 @@ const TopBar = ({ left, center, right }) => (
   <div style={{
     display:'flex',alignItems:'center',justifyContent:'space-between',
     padding:'0 14px',height:46,flexShrink:0,
-    borderBottom:`2px solid ${C.accent}`,background:C.ink,
+    borderBottom:`1px solid ${C.bord}`,background:'#fff',
   }}>
     <div style={{ minWidth:80 }}>{left}</div>
     <div style={{ fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
-      letterSpacing:'0.15em',color:C.cream,textAlign:'center' }}>{center}</div>
+      letterSpacing:'0.15em',color:'#1a1a1a',textAlign:'center' }}>{center}</div>
     <div style={{ minWidth:80,display:'flex',justifyContent:'flex-end' }}>{right}</div>
   </div>
 );
@@ -354,7 +355,7 @@ import { MUR_DB, g2s, s2g } from './rhythmDB.js';
 ═══════════════════════════════════════════════════════════════════════ */
 function RootContainer({children}) {
   return (
-    <div style={{height:'100dvh',background:C.ink,color:C.cream,
+    <div style={{height:'100dvh',background:'#f5f5f5',color:'#1a1a1a',
       display:'flex',flexDirection:'column',overflow:'hidden'}}>
       {children}
     </div>
@@ -861,7 +862,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
       />
 
       {/* Tabs */}
-      <div style={{display:'flex',borderBottom:`1px solid ${C.bord}`,flexShrink:0,background:C.ink}}>
+      <div style={{display:'flex',borderBottom:`1px solid ${C.bord}`,flexShrink:0,background:'#fff'}}>
         <button style={tabStyle(tab==='pieces')} onClick={()=>{setTab('pieces');setSearch('');}}>Repertoire</button>
         <button style={tabStyle(tab==='log')} onClick={()=>{setTab('log');setSearch('');}}>Practice Log</button>
       </div>
@@ -896,13 +897,13 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
       )}
 
       {/* Search bar */}
-      <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.bord}`,flexShrink:0,background:'#0e0c09'}}>
+      <div style={{padding:'10px 16px',borderBottom:`1px solid ${C.bord}`,flexShrink:0,background:'#f5f5f5'}}>
         <input
           type="text"
           value={search}
           onChange={e=>setSearch(e.target.value)}
           placeholder={tab==='pieces'?'Search by title or composer…':'Search exercises…'}
-          style={{width:'100%',background:C.panel,border:`1px solid ${C.bord}`,color:C.cream,
+          style={{width:'100%',background:'#fff',border:`1px solid ${C.bord}`,color:C.cream,
             padding:'8px 12px',fontFamily:"'Inconsolata',monospace",fontSize:'0.95rem',
             outline:'none',boxSizing:'border-box'}}
         />
@@ -912,9 +913,9 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
       {confirmDel && (
         <>
           <div onClick={()=>setConfirmDel(null)}
-            style={{position:'fixed',inset:0,zIndex:500,background:'rgba(0,0,0,0.6)'}}/>
+            style={{position:'fixed',inset:0,zIndex:500,background:'rgba(0,0,0,0.3)'}}/>
           <div style={{position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
-            zIndex:501,background:C.ink,border:`1px solid ${C.bord}`,
+            zIndex:501,background:'#fff',border:`1px solid ${C.bord}`,
             padding:28,width:320,display:'flex',flexDirection:'column',gap:14,
             boxShadow:'0 8px 40px rgba(0,0,0,0.8)'}}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
@@ -951,9 +952,9 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
       {locatePicker && (
         <>
           <div onClick={()=>setLocatePicker(null)}
-            style={{position:'fixed',inset:0,zIndex:500,background:'rgba(0,0,0,0.6)'}}/>
+            style={{position:'fixed',inset:0,zIndex:500,background:'rgba(0,0,0,0.3)'}}/>
           <div style={{position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
-            zIndex:501,background:C.ink,border:`1px solid ${C.bord}`,
+            zIndex:501,background:'#fff',border:`1px solid ${C.bord}`,
             padding:24,width:340,display:'flex',flexDirection:'column',gap:12,
             boxShadow:'0 8px 40px rgba(0,0,0,0.8)'}}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
@@ -971,7 +972,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
               )}
               {pieces.map(p=>(
                 <button key={p.id} onClick={()=>openLocateWithPiece(locatePicker,p)}
-                  style={{textAlign:'left',padding:'14px 16px',background:C.panel,
+                  style={{textAlign:'left',padding:'14px 16px',background:'#fff',
                     border:`1px solid ${C.bord}`,cursor:'pointer',width:'100%',
                     WebkitTapHighlightColor:'transparent',transition:'background 0.1s'}}
                   onMouseEnter={e=>e.currentTarget.style.background=C.surf}
@@ -1001,7 +1002,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
             }}>+ ADD REPERTOIRE</button>
 
             {showUpload && (
-              <div style={{background:C.panel,border:`1px solid ${C.bord}`,padding:20,marginBottom:20,display:'flex',flexDirection:'column',gap:14}}>
+              <div style={{background:'#fff',border:`1px solid ${C.bord}`,padding:20,marginBottom:20,display:'flex',flexDirection:'column',gap:14}}>
                 <Field label="Title"><input type="text" value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Brahms Sonata mvt 1" /></Field>
                 <Field label="Composer"><input type="text" value={composer} onChange={e=>setComposer(e.target.value)} placeholder="e.g. Brahms" /></Field>
                 <Field label="Instrument">
@@ -1333,7 +1334,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
       {isInterleaved && !locateEx && (
         <div style={{display:'flex',alignItems:'center',gap:8,
           padding:'6px 12px',flexShrink:0,
-          background:C.panel,borderBottom:`1px solid ${C.bord}`,
+          background:'#fff',borderBottom:`1px solid ${C.bord}`,
           position:'relative'}}>
           {/* BPM step buttons + display */}
           {['−','+'].map((lbl,di)=>{
@@ -1352,7 +1353,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             };
             return (
               <button key={lbl} {...props} style={{
-                background:'#2a231d',border:`1px solid ${C.bord2}`,color:C.cream,
+                background:'#f0f0f0',border:`1px solid ${C.bord2}`,color:C.cream,
                 width:32,height:32,cursor:'pointer',userSelect:'none',flexShrink:0,
                 fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
                 display:'flex',alignItems:'center',justifyContent:'center',
@@ -1412,7 +1413,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             <div style={{
               position:'fixed',left:'50%',top:'50%',
               transform:'translate(-50%,-50%)',
-              zIndex:50,background:C.ink,border:'2px solid #4a9eff',
+              zIndex:50,background:'#fff',border:'2px solid #4a9eff',
               borderRadius:6,padding:'22px 24px',
               width:'min(340px, 88vw)',
               boxShadow:'0 8px 40px rgba(0,0,0,0.7)',
@@ -1464,13 +1465,13 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         </div>
       )}
 
-      <div data-score-container style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',position:'relative'}}>
+      <div data-score-container style={{flex:'1 1 0',minHeight:0,background:'#e8e5e0',display:'flex',position:'relative'}}>
 
         {/* Floating hint toast — dismissible, only on first view */}
         {showHint && !locateEx && (
           <div onClick={()=>setShowHint(false)} style={{
             position:'absolute',top:16,left:'50%',transform:'translateX(-50%)',
-            zIndex:20,background:'rgba(26,22,18,0.92)',border:`1px solid ${C.bord}`,
+            zIndex:20,background:'rgba(255,255,255,0.95)',border:`1px solid ${C.bord}`,
             borderRadius:6,padding:'8px 16px 8px 14px',
             display:'flex',alignItems:'center',gap:10,
             boxShadow:'0 4px 20px rgba(0,0,0,0.5)',
@@ -1488,7 +1489,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
           <button onClick={()=>setCurrentPage(p=>p-1)}
             style={{
               position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',
-              zIndex:10,background:'rgba(26,22,18,0.7)',border:'none',
+              zIndex:10,background:'rgba(255,255,255,0.85)',border:'none',
               color:C.cream,fontSize:'1.8rem',padding:'16px 10px',
               cursor:'pointer',WebkitTapHighlightColor:'transparent',
               borderRadius:'0 4px 4px 0',
@@ -1500,7 +1501,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
           <button onClick={()=>setCurrentPage(p=>p+1)}
             style={{
               position:'absolute',right:0,top:'50%',transform:'translateY(-50%)',
-              zIndex:10,background:'rgba(26,22,18,0.7)',border:'none',
+              zIndex:10,background:'rgba(255,255,255,0.85)',border:'none',
               color:C.cream,fontSize:'1.8rem',padding:'16px 10px',
               cursor:'pointer',WebkitTapHighlightColor:'transparent',
               borderRadius:'4px 0 0 4px',
@@ -1511,7 +1512,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         {!showTwo && totalPages>1 && (
           <div style={{
             position:'absolute',bottom:12,left:'50%',transform:'translateX(-50%)',
-            zIndex:10,background:'rgba(26,22,18,0.8)',
+            zIndex:10,background:'rgba(255,255,255,0.9)',
             padding:'4px 12px',borderRadius:12,
             fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.cream,
             pointerEvents:'none',
@@ -1616,10 +1617,10 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
       {spotModal && (
         <>
           <div onClick={()=>setSpotModal(null)} style={{
-            position:'fixed',inset:0,zIndex:400,background:'rgba(0,0,0,0.55)'}}/>
+            position:'fixed',inset:0,zIndex:400,background:'rgba(0,0,0,0.25)'}}/>
           <div style={{
             position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
-            zIndex:401,background:C.ink,border:`1px solid ${C.bord}`,
+            zIndex:401,background:'#fff',border:`1px solid ${C.bord}`,
             borderRadius:8,padding:0,width:'min(380px,90vw)',maxHeight:'70vh',
             boxShadow:'0 8px 40px rgba(0,0,0,0.8)',display:'flex',flexDirection:'column',
             overflow:'hidden',
@@ -1906,7 +1907,7 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, onBack }) {
 
   if(done) return (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,
-      alignItems:'center',justifyContent:'center',background:C.ink,gap:20,padding:32}}>
+      alignItems:'center',justifyContent:'center',background:'#fff',gap:20,padding:32}}>
       <div style={{fontSize:'3rem'}}>🎉</div>
       <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2rem',
         letterSpacing:'0.15em',color:'#3db06a',textAlign:'center'}}>ALL SPOTS MASTERED</div>
@@ -1919,7 +1920,7 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, onBack }) {
   );
 
   return (
-    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,background:C.ink}}>
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,background:'#fff'}}>
       <TopBar
         left={<button onClick={onBack} style={{background:'none',border:`1px solid ${C.bord2}`,
           color:C.cream,padding:'6px 10px',cursor:'pointer',
@@ -1958,7 +1959,7 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, onBack }) {
           const adjBpm = delta => setMetroBpm(b=>Math.min(220,Math.max(30,b+delta)));
           return (<>
             <button onClick={()=>adjBpm(-5)} style={{
-              background:'#2a231d',border:`1px solid ${C.bord2}`,color:C.cream,
+              background:'#f0f0f0',border:`1px solid ${C.bord2}`,color:C.cream,
               width:32,height:32,cursor:'pointer',flexShrink:0,
               fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
               display:'flex',alignItems:'center',justifyContent:'center',
@@ -1969,7 +1970,7 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, onBack }) {
               color:metroOn?C.accent:C.cream,lineHeight:1,
               minWidth:72,textAlign:'center',flexShrink:0}}>♩ = {metroBpm}</span>
             <button onClick={()=>adjBpm(5)} style={{
-              background:'#2a231d',border:`1px solid ${C.bord2}`,color:C.cream,
+              background:'#f0f0f0',border:`1px solid ${C.bord2}`,color:C.cream,
               width:32,height:32,cursor:'pointer',flexShrink:0,
               fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
               display:'flex',alignItems:'center',justifyContent:'center',
@@ -2015,12 +2016,12 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, onBack }) {
       </div>
 
       {/* Score — full remaining height with floating arrows */}
-      <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',position:'relative'}}>
+      <div style={{flex:'1 1 0',minHeight:0,background:'#e8e5e0',display:'flex',position:'relative'}}>
         {/* Floating page arrows */}
         {totalPages>1 && currentPage>0 && (
           <button onClick={()=>setCurrentPage(p=>p-1)} style={{
             position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
-            background:'rgba(26,22,18,0.7)',border:'none',color:C.cream,fontSize:'1.8rem',
+            background:'rgba(255,255,255,0.85)',border:'none',color:C.cream,fontSize:'1.8rem',
             padding:'16px 10px',cursor:'pointer',borderRadius:'0 4px 4px 0',
             WebkitTapHighlightColor:'transparent',
           }}>‹</button>
@@ -2028,7 +2029,7 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, onBack }) {
         {totalPages>1 && currentPage<totalPages-1 && !(showTwo && currentPage+2>=totalPages) && (
           <button onClick={()=>setCurrentPage(p=>p+1)} style={{
             position:'absolute',right:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
-            background:'rgba(26,22,18,0.7)',border:'none',color:C.cream,fontSize:'1.8rem',
+            background:'rgba(255,255,255,0.85)',border:'none',color:C.cream,fontSize:'1.8rem',
             padding:'16px 10px',cursor:'pointer',borderRadius:'4px 0 0 4px',
             WebkitTapHighlightColor:'transparent',
           }}>›</button>
@@ -2037,7 +2038,7 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, onBack }) {
         {/* Page indicator */}
         {totalPages>1 && !showTwo && (
           <div style={{position:'absolute',bottom:8,left:'50%',transform:'translateX(-50%)',
-            zIndex:10,background:'rgba(26,22,18,0.8)',padding:'4px 12px',borderRadius:12,
+            zIndex:10,background:'rgba(255,255,255,0.9)',padding:'4px 12px',borderRadius:12,
             fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',color:C.cream,
             pointerEvents:'none'}}>
             {currentPage+1} / {totalPages}
@@ -2115,7 +2116,7 @@ function ExerciseCard({ ex, confirmDelete, setConfirmDelete, deleting, onDelete,
       <button
         style={{display:'flex',flexDirection:'column',gap:8,padding:'16px 52px 16px 18px',
           width:'100%',textAlign:'left',cursor:'pointer',
-          border:`1px solid ${C.bord}`,background:C.panel,
+          border:`1px solid ${C.bord}`,background:'#fff',
           WebkitTapHighlightColor:'transparent',transition:'background 0.12s'}}
         onClick={()=>{ if(confirmDelete!==ex.id) onOpen(ex); }}
         onMouseEnter={e=>e.currentTarget.style.background=C.surf}
@@ -2249,13 +2250,13 @@ function StrategyOverlay({ piece, profile, tapPos, onClose, onICU, onRV, onSCU, 
       {/* Backdrop */}
       <div onClick={onClose} style={{
         position:'fixed', inset:0, zIndex:400,
-        background:'rgba(0,0,0,0.55)',
+        background:'rgba(0,0,0,0.25)',
       }}/>
 
       {/* Panel — bottom sheet style */}
       <div style={{
         position:'fixed', left:0, right:0, bottom:0, zIndex:401,
-        background:C.ink, borderTop:`3px solid ${C.accent}`,
+        background:'#fff', borderTop:`3px solid ${C.accent}`,
         borderRadius:'12px 12px 0 0',
         maxHeight:'70vh', overflowY:'auto',
         WebkitOverflowScrolling:'touch',
@@ -2471,7 +2472,7 @@ function ZoomableScore({ src, tapPos, currentPage, totalPages, onPageChange, fle
 
   return (
     <div ref={containerRef}
-      style={{ position:'relative', background:'#0a0805',
+      style={{ position:'relative', background:'#e8e5e0',
         overflowY:'scroll', overflowX:'hidden',
         flex, minHeight:0, height:0,
         WebkitOverflowScrolling:'touch',
@@ -3209,7 +3210,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
 
   // ── Score panel ────────────────────────────────────────────────────
   const AttachPanel = (
-    <div style={{background:C.panel,border:`1px dashed ${C.bord2}`,padding:'16px',
+    <div style={{background:'#fff',border:`1px dashed ${C.bord2}`,padding:'16px',
       display:'flex',flexDirection:'column',gap:10,flexShrink:0}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'0.95rem',color:C.muted}}>
@@ -3275,7 +3276,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
   const ExercisePanelLarge = generated && exercises.length>0 && (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <div style={{display:'flex',alignItems:'center',gap:8,
-        padding:'6px 14px',flexShrink:0,background:C.ink,borderBottom:`1px solid ${C.bord}`}}>
+        padding:'6px 14px',flexShrink:0,background:'#fff',borderBottom:`1px solid ${C.bord}`}}>
         <Btn onClick={()=>setGenerated(false)} style={{fontSize:'0.85rem',padding:'7px 14px',flexShrink:0}}>
           ← EDIT
         </Btn>
@@ -3292,12 +3293,12 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
         }}>DONE ✓</button>
       </div>
       {showAttach && (
-        <div style={{flexShrink:0,background:C.panel,borderBottom:`1px solid ${C.bord}`,padding:'8px 14px'}}>
+        <div style={{flexShrink:0,background:'#fff',borderBottom:`1px solid ${C.bord}`,padding:'8px 14px'}}>
           {attachLoading && <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted}}>Loading...</span>}
           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
             {attachPieces.map(p=>(
               <button key={p.id} onClick={()=>setShowAttach(false)}
-                style={{background:C.panel,border:`1px solid ${C.bord2}`,color:C.cream,
+                style={{background:'#fff',border:`1px solid ${C.bord2}`,color:C.cream,
                   fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.8rem',
                   letterSpacing:'0.08em',padding:'5px 12px',cursor:'pointer'}}>
                 {p.title||'Untitled'}
@@ -3313,7 +3314,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
   const ExercisePanelSmall = generated && exercises.length>0 && (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-        padding:'6px 10px',flexShrink:0,background:C.ink,borderTop:`1px solid ${C.bord}`}}>
+        padding:'6px 10px',flexShrink:0,background:'#fff',borderTop:`1px solid ${C.bord}`}}>
         <button onClick={()=>setGenerated(false)}
           style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
             padding:'5px 10px',cursor:'pointer',fontFamily:"'Bebas Neue',sans-serif",
@@ -3355,7 +3356,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
   // ── Input panel ────────────────────────────────────────────────────
   const InputPanel = (
     <div style={{display:'flex',flexDirection:'column',flex:pageImages.length>0?'1 1 0':'1 1 0',
-      minHeight:0,overflowY:'auto',background:C.ink}}>
+      minHeight:0,overflowY:'auto',background:'#fff'}}>
 
       {/* Step 1: grouping */}
       <div style={{padding:'10px 14px',borderBottom:`1px solid ${C.bord}`,flexShrink:0}}>
@@ -3381,7 +3382,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
       {/* Step 2: Instrument Setup — reveals after grouping selected */}
       {activeGroup && (
       <div style={{padding:'10px 20px',borderBottom:`1px solid ${C.bord}`,
-        background:'#0e0c09',flexShrink:0}}>
+        background:'#f5f5f5',flexShrink:0}}>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
           letterSpacing:'0.2em',color:C.cream,marginBottom:10}}>INSTRUMENT SETUP</div>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
@@ -3495,7 +3496,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
       {activeGroup && instrSelected && (
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
         padding:'10px 20px',borderBottom:`1px solid ${C.bord}`,flexShrink:0,
-        background:'#0e0c09',flexWrap:'wrap',gap:6}}>
+        background:'#f5f5f5',flexWrap:'wrap',gap:6}}>
         <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
           letterSpacing:'0.2em',color:C.cream}}>ENTER YOUR PASSAGE</span>
         <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
@@ -3897,7 +3898,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
   });
 
   const bpmBtn = {
-    background:'#2a231d',border:`1px solid ${C.bord2}`,color:C.cream,
+    background:'#f0f0f0',border:`1px solid ${C.bord2}`,color:C.cream,
     width:40,height:40,cursor:'pointer',userSelect:'none',flexShrink:0,
     fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
     display:'flex',alignItems:'center',justifyContent:'center',
@@ -3922,7 +3923,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
                 letterSpacing:'0.2em',color:C.muted,marginBottom:8}}>SPOT NAME</div>
               <input type="text" value={spotLabel} onChange={e=>setSpotLabel(e.target.value)}
                 placeholder="e.g. m.32 run, coda, opening"
-                style={{width:'100%',background:C.panel,border:`1px solid ${C.bord}`,color:C.cream,
+                style={{width:'100%',background:'#fff',border:`1px solid ${C.bord}`,color:C.cream,
                   padding:'10px 12px',fontFamily:"'Inconsolata',monospace",fontSize:'0.95rem'}}/>
             </div>
 
@@ -3996,7 +3997,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
   return (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       {/* Top bar — compact, like ICU */}
-      <div style={{flexShrink:0,borderBottom:`2px solid #3db06a`,background:C.ink}}>
+      <div style={{flexShrink:0,borderBottom:`1px solid #d4d4d4`,background:'#fff'}}>
         <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 10px'}}>
           <button onClick={saveAndExit} style={{background:'none',border:`1px solid ${C.bord2}`,color:C.cream,padding:'6px 10px',cursor:'pointer',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',letterSpacing:'0.1em',flexShrink:0}}>← EXIT</button>
 
@@ -4055,12 +4056,12 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
       </div>
 
       {/* Score display — fills remaining space */}
-      <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',position:'relative'}}>
+      <div style={{flex:'1 1 0',minHeight:0,background:'#e8e5e0',display:'flex',position:'relative'}}>
         {/* Page arrows — always show when multi-page */}
         {totalPages>1 && currentPage>0 && (
           <button onClick={()=>setCurrentPage(p=>p-1)} style={{
             position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
-            background:'rgba(26,22,18,0.7)',border:'none',color:C.cream,fontSize:'1.8rem',
+            background:'rgba(255,255,255,0.85)',border:'none',color:C.cream,fontSize:'1.8rem',
             padding:'16px 10px',cursor:'pointer',borderRadius:'0 4px 4px 0',
             WebkitTapHighlightColor:'transparent',
           }}>‹</button>
@@ -4068,7 +4069,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
         {totalPages>1 && currentPage<totalPages-1 && !(showTwo && currentPage+2>=totalPages) && (
           <button onClick={()=>setCurrentPage(p=>p+1)} style={{
             position:'absolute',right:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
-            background:'rgba(26,22,18,0.7)',border:'none',color:C.cream,fontSize:'1.8rem',
+            background:'rgba(255,255,255,0.85)',border:'none',color:C.cream,fontSize:'1.8rem',
             padding:'16px 10px',cursor:'pointer',borderRadius:'4px 0 0 4px',
             WebkitTapHighlightColor:'transparent',
           }}>›</button>
@@ -4130,7 +4131,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
                   left:`${(s.score_x+ox)*100}%`,
                   top:`${(s.score_y+oy)*100}%`,
                   transform:'translate(-50%,-120%)',
-                  background:'rgba(26,22,18,0.85)',
+                  background:'rgba(255,255,255,0.92)',
                   border:'1px solid #666',
                   borderRadius:4,padding:'3px 8px',
                   pointerEvents:'none',zIndex:12,whiteSpace:'nowrap',
@@ -4150,7 +4151,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
         {totalPages>1 && !showTwo && (
           <div style={{position:'absolute',bottom:8,left:'50%',transform:'translateX(-50%)',
             fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:C.muted,
-            background:'rgba(26,22,18,0.8)',padding:'3px 10px',borderRadius:3}}>
+            background:'rgba(255,255,255,0.9)',padding:'3px 10px',borderRadius:3}}>
             {currentPage+1} / {totalPages}
           </div>
         )}
@@ -4159,9 +4160,9 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
       {/* Completed 10 overlay */}
       {showComplete && (
         <>
-          <div style={{position:'fixed',inset:0,zIndex:500,background:'rgba(0,0,0,0.6)'}}/>
+          <div style={{position:'fixed',inset:0,zIndex:500,background:'rgba(0,0,0,0.3)'}}/>
           <div style={{position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
-            zIndex:501,background:C.ink,border:`2px solid #3db06a`,
+            zIndex:501,background:'#fff',border:`2px solid #3db06a`,
             padding:'24px',width:'min(340px,88vw)',
             display:'flex',flexDirection:'column',gap:14,textAlign:'center',
             boxShadow:'0 8px 40px rgba(0,0,0,0.8)'}}>
@@ -4404,7 +4405,7 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
         </div>
       </div>
 
-      <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex',flexDirection:'row'}}>
+      <div style={{flex:'1 1 0',minHeight:0,background:'#e8e5e0',display:'flex',flexDirection:'row'}}>
         <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
           <img ref={imgRef} src={pageImages[currentPage]}
             onLoad={()=>{setLoaded(true);requestAnimationFrame(()=>draw());}}
@@ -4448,7 +4449,7 @@ function ParamsScreen({ N, startTempo, setStartTempo, goalTempo, setGoalTempo, i
         <Spinner label="GOAL TEMPO"  value={goalTempo}  set={setGoalTempo}  min={startTempo+1} max={320} />
         <Spinner label="INCREMENT"   value={increment}  set={setIncrement}  min={1} max={40} />
         {valid && (
-          <div style={{padding:'10px 14px',background:C.panel,border:`1px solid ${C.bord2}`,
+          <div style={{padding:'10px 14px',background:'#fff',border:`1px solid ${C.bord2}`,
             fontFamily:"'Inconsolata',monospace",fontSize:'0.95rem',color:C.cream,lineHeight:1.7}}>
             {Math.floor((goalTempo-startTempo)/increment)+1} steps per phase &nbsp;&middot;&nbsp; {N} phases
           </div>
@@ -4608,7 +4609,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   );
 
   const photoBlock = (
-    <div style={{flex:'1 1 0',minHeight:0,background:'#0a0805',display:'flex'}}>
+    <div style={{flex:'1 1 0',minHeight:0,background:'#e8e5e0',display:'flex'}}>
       <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
         <img ref={imgRef} src={pageImages[currentPage]}
           onLoad={()=>{setImgLoaded(true);requestAnimationFrame(()=>drawOverlay());}}
@@ -4629,7 +4630,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   );
 
   const topBarContent = (compact) => (
-    <div style={{flexShrink:0,borderBottom:`2px solid ${C.accent}`,background:C.ink}}>
+    <div style={{flexShrink:0,borderBottom:`1px solid ${C.bord}`,background:'#fff'}}>
       <div style={{display:'flex',alignItems:'center',gap:6,padding:compact?'3px 8px':'5px 8px'}}>
         <button onClick={onBack} style={{background:'none',border:`1px solid ${C.bord2}`,color:C.cream,padding:'6px 10px',cursor:'pointer',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',letterSpacing:'0.1em',flexShrink:0}}>← EXIT</button>
 
@@ -4685,7 +4686,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   );
 
   return (
-    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,background:C.ink}}>
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,background:'#fff'}}>
       {topBarContent(land)}
       {progressBar}
       {photoBlock}
