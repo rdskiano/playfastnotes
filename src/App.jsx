@@ -1103,6 +1103,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   const showTwo = land && totalPages > 1;
   const rightPage = currentPage + 1 < totalPages ? currentPage + 1 : null;
   const [showHint, setShowHint] = useState(true);
+  const [showDots, setShowDots] = useState(false);
 
   // Practice spots with log summaries
   const [practiceSpots, setPracticeSpots] = useState([]);
@@ -1468,6 +1469,21 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
           }}>{currentPage+1} / {totalPages}</div>
         )}
 
+        {/* Practice history toggle */}
+        {!isInterleaved && !locateEx && (
+          <button onClick={()=>setShowDots(d=>!d)} style={{
+            position:'absolute',bottom:12,right:12,zIndex:10,
+            background:showDots?'rgba(61,176,106,0.85)':'rgba(26,22,18,0.8)',
+            border:`1px solid ${showDots?'#3db06a':'#555'}`,
+            color:showDots?'white':C.muted,
+            padding:'5px 10px',borderRadius:12,
+            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.7rem',
+            letterSpacing:'0.08em',cursor:'pointer',
+            WebkitTapHighlightColor:'transparent',
+            transition:'background 0.2s,border-color 0.2s',
+          }}>{showDots?'● HIDE SPOTS':'○ SHOW SPOTS'}</button>
+        )}
+
         <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
           <img data-page={currentPage} src={pageImages[currentPage]}
             onClick={handleTap}
@@ -1484,7 +1500,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             />
           ))}
           {/* Practice log dots */}
-          {!isInterleaved && !locateEx && practiceSpots.filter(s=>s.score_page===currentPage).map(spot=>{
+          {showDots && !isInterleaved && !locateEx && practiceSpots.filter(s=>s.score_page===currentPage).map(spot=>{
             const ox = spot.visual_offset_x||0;
             const oy = spot.visual_offset_y||0;
             const pct = spot.pct_complete!=null ? Math.min(100,Number(spot.pct_complete)) : null;
