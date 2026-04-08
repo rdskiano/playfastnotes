@@ -2345,7 +2345,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
                 fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
                 letterSpacing:'0.08em',cursor:'pointer',
                 WebkitTapHighlightColor:'transparent',
-              }}>⏱</button>
+              }}>⏱ TIMER</button>
               <button onClick={()=>setShowTempoTrackers(t=>!t)} style={{
                 background: showTempoTrackers ? 'rgba(46,170,87,0.15)' : 'rgba(0,0,0,0.06)',
                 border: showTempoTrackers ? '1px solid rgba(46,170,87,0.3)' : 'none',
@@ -2354,7 +2354,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
                 fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
                 letterSpacing:'0.06em',cursor:'pointer',
                 WebkitTapHighlightColor:'transparent',
-              }}>{showTempoTrackers ? '♩ ON' : '♩'}</button>
+              }}>{showTempoTrackers ? '♩ TEMPO TRACKER ON' : '♩ TEMPO TRACKER'}</button>
             </>)}
           </div>
           <div style={{textAlign:'center',flex:1,minWidth:0}}>
