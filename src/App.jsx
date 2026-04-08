@@ -1612,7 +1612,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             const oy = spot.visual_offset_y||0;
             const strats = Object.keys(spot.strategies||{});
             const dotDefs = [];
-            const offsets = strats.length===1?[0]:strats.length===2?[-8,8]:[-14,0,14];
+            const offsets = strats.length===1?[0]:strats.length===2?[-20,20]:[-30,0,30];
             strats.forEach((st,i)=>{
               const xOff = offsets[i]||0;
               if(st==='icu') dotDefs.push({key:`${spot.id}-icu`,st,color:C.accent,xOff,label:null});
@@ -1620,14 +1620,29 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
               else if(st==='scu') {
                 const best = spot.scu_best||0;
                 const goal = spot.perf_tempo||0;
-                dotDefs.push({key:`${spot.id}-scu`,st,color:'#3db06a',xOff,
+                dotDefs.push({key:`${spot.id}-scu`,st,color:'#2eaa57',xOff,
                   label: goal ? `${best}/${goal}` : null});
               }
             });
             if(dotDefs.length===0) return null;
             return dotDefs.map(d=>(
               <div key={d.key}
-                onClick={e=>{e.stopPropagation();setSpotModal(spot);}}
+                onClick={e=>{
+                  e.stopPropagation();
+                  const pos={page:spot.score_page,x:spot.score_x,y:spot.score_y};
+                  if(d.st==='scu') {
+                    // Launch SCU directly at last tempo
+                    onLaunchStrategy('scu', pos);
+                  } else if(d.st==='mur') {
+                    // Open strategy overlay → RV panel with exercise list
+                    onTapPassage(pos);
+                  } else if(d.st==='icu') {
+                    // Launch ICU directly
+                    onLaunchStrategy('icu', pos);
+                  } else {
+                    setSpotModal(spot);
+                  }
+                }}
                 onTouchStart={e=>handleDotDragStart(e,spot)}
                 onTouchMove={handleDotDragMove}
                 onTouchEnd={handleDotDragEnd}
@@ -1641,13 +1656,13 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
                   WebkitTapHighlightColor:'transparent',
                   touchAction:'none',
                   ...(d.label ? {
-                    background:'rgba(61,176,106,0.9)',border:'1.5px solid white',
-                    borderRadius:4,padding:'1px 5px',
+                    background:'rgba(46,170,87,0.92)',border:'1.5px solid white',
+                    borderRadius:6,padding:'2px 6px',
                   } : {
-                    width:14,height:14,borderRadius:'50%',
+                    width:16,height:16,borderRadius:'50%',
                     background:d.color,border:'2px solid white',
                   }),
-                  boxShadow:'0 1px 4px rgba(0,0,0,0.5)',
+                  boxShadow:'0 1px 6px rgba(0,0,0,0.35)',
                 }}>
                 {d.label && (
                   <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
