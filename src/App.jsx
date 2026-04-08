@@ -1075,7 +1075,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
           <div style={{position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
             zIndex:501,background:'#fff',border:`1px solid ${C.bord}`,
             padding:28,width:320,display:'flex',flexDirection:'column',gap:14,
-            boxShadow:'0 8px 40px rgba(0,0,0,0.8)'}}>
+            boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
               letterSpacing:'0.18em',color:'#e57373'}}>
               {confirmDel.type==='piece' ? 'DELETE REPERTOIRE?' : 'DELETE EXERCISE?'}
@@ -1114,7 +1114,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
           <div style={{position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
             zIndex:501,background:'#fff',border:`1px solid ${C.bord}`,
             padding:24,width:340,display:'flex',flexDirection:'column',gap:12,
-            boxShadow:'0 8px 40px rgba(0,0,0,0.8)'}}>
+            boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
               letterSpacing:'0.18em',color:C.gold}}>SELECT A PIECE TO LOCATE IN</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
@@ -1654,7 +1654,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             color:placeMetroOn?C.accent:C.cream,lineHeight:1,
             minWidth:72,textAlign:'center',flexShrink:0}}>♩ = {placeMetroBpm}</span>
           <button onClick={toggleMetro} style={{
-            background: metroWaiting?'#4a9eff':placeMetroOn?C.accent:'#2a231d',
+            background: metroWaiting?'#4a9eff':placeMetroOn?C.accent:'#f0f0f0',
             border:`2px solid ${metroWaiting?'#4a9eff':placeMetroOn?C.accent:'#666'}`,
             color:'white',width:36,height:36,cursor:'pointer',flexShrink:0,
             fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',
@@ -1668,7 +1668,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             return (
               <button onClick={lockIn} disabled={!selectedSpotId} style={{
                 flexShrink:0,padding:'5px 10px',
-                background:locked?'rgba(61,176,106,0.18)':'#2a231d',
+                background:locked?'rgba(61,176,106,0.18)':'#f0f0f0',
                 border:`1px solid ${locked?'#3db06a':selectedSpotId?C.bord2:C.bord}`,
                 color:locked?'#3db06a':selectedSpotId?C.cream:C.dim,
                 fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.72rem',
@@ -2127,7 +2127,7 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, onBack }) {
               setMetroOn(next);
               if(next) metro.current.start(metroBpm); else metro.current.stop();
             }} style={{
-              background:metroOn?C.accent:'#2a231d',
+              background:metroOn?C.accent:'#f0f0f0',
               border:`2px solid ${metroOn?C.accent:'#666'}`,
               color:'white',width:36,height:36,cursor:'pointer',
               fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',
@@ -2138,7 +2138,7 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, onBack }) {
               setSpots(prev=>prev.map(s=>s.id===currentSpotId?{...s,bpm:metroBpm}:s));
             }} style={{
               flexShrink:0,padding:'5px 10px',
-              background:alreadyLocked?'rgba(61,176,106,0.18)':'#2a231d',
+              background:alreadyLocked?'rgba(61,176,106,0.18)':'#f0f0f0',
               border:`1px solid ${alreadyLocked?'#3db06a':C.bord2}`,
               color:alreadyLocked?'#3db06a':C.cream,
               fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.72rem',
@@ -2742,7 +2742,7 @@ function RespellPopup({note,anchorY,onClose,onDelete,onUpdate}){
               return<button key={opt} onClick={()=>onUpdate(opt)} style={{
                 padding:'7px 14px',cursor:'pointer',WebkitTapHighlightColor:'transparent',
                 fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',letterSpacing:'0.06em',
-                background:cur?C.accent:'#2a231d',border:`1px solid ${cur?C.accent:C.bord}`,
+                background:cur?C.accent:'#f0f0f0',border:`1px solid ${cur?C.accent:C.bord}`,
                 color:cur?'white':C.cream,
               }}>{dn(opt)}</button>;
             })}
@@ -2772,7 +2772,7 @@ function RespellPopup({note,anchorY,onClose,onDelete,onUpdate}){
               return<button key={opt.acc} onClick={()=>onUpdate(letter+opt.acc+oct)} title={opt.title}
                 style={{flex:1,padding:'7px 4px',cursor:'pointer',WebkitTapHighlightColor:'transparent',
                   fontFamily:"'Cormorant Garamond',serif",fontSize:'1rem',
-                  background:act?C.accent:'#2a231d',border:`1px solid ${act?C.accent:C.bord}`,
+                  background:act?C.accent:'#f0f0f0',border:`1px solid ${act?C.accent:C.bord}`,
                   color:act?'white':C.cream}}>{opt.label}</button>;
             })}
           </div>
@@ -3515,7 +3515,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
         <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
           {[3,4,5,6,7,8].map(n=>(
             <button key={n} onClick={()=>setActiveGroup(n)} style={{
-              minWidth:52,height:68,border:`2px solid ${activeGroup===n?C.accent:'#2a231d'}`,
+              minWidth:52,height:68,border:`2px solid ${activeGroup===n?C.accent:'#f0f0f0'}`,
               background:activeGroup===n?C.accent:'transparent',
               cursor:'pointer',display:'flex',flexDirection:'column',
               alignItems:'center',justifyContent:'flex-end',padding:'4px 4px 6px',gap:2,
@@ -3606,7 +3606,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
               <div style={{display:'flex',gap:6}}>
                 <button onClick={generate} disabled={!canGenerate||!docName.trim()} style={{
                   flex:2,padding:'8px 4px',
-                  background:(canGenerate&&docName.trim())?C.accent:'#2a231d',
+                  background:(canGenerate&&docName.trim())?C.accent:'#f0f0f0',
                   border:`1px solid ${(canGenerate&&docName.trim())?C.accent:C.bord}`,
                   color:(canGenerate&&docName.trim())?'white':C.dim,
                   fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
@@ -3616,7 +3616,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
                 }}>GENERATE</button>
                 <button onClick={playPassage} disabled={!selNotes.length} style={{
                   flex:1,padding:'8px 4px',
-                  background:passagePlaying?'#2a1010':'#2a231d',
+                  background:passagePlaying?'#2a1010':'#f0f0f0',
                   border:`1px solid ${passagePlaying?'#e53535':C.bord}`,
                   color:passagePlaying?'#e53535':selNotes.length?C.cream:'#444',
                   fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
@@ -4106,7 +4106,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
                 {[2,5,10].map(n=>(
                   <button key={n} onClick={()=>setIncSize(n)} style={{
                     flex:1,padding:'10px 0',
-                    background:incSize===n?'#3db06a':'#2a231d',
+                    background:incSize===n?'#3db06a':'#f0f0f0',
                     border:`1px solid ${incSize===n?'#3db06a':C.bord2}`,
                     color:incSize===n?'white':C.cream,
                     fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
@@ -4136,7 +4136,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
   const streakDots = range(0,10).map(i=>(
     <div key={i} style={{
       width:14,height:14,borderRadius:'50%',
-      background:i<streak?'#3db06a':'#2a231d',
+      background:i<streak?'#3db06a':'#f0f0f0',
       border:`2px solid ${i<streak?'#3db06a':'#444'}`,
       transition:'background 0.15s,border-color 0.15s',
     }}/>
@@ -4160,7 +4160,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
 
             {/* Metronome */}
             <button onClick={()=>setMetroOn(m=>!m)} style={{
-              background:metroOn?'#3db06a':'#2a231d',border:`2px solid ${metroOn?'#3db06a':'#666'}`,
+              background:metroOn?'#3db06a':'#f0f0f0',border:`2px solid ${metroOn?'#3db06a':'#666'}`,
               color:'white',width:36,height:36,cursor:'pointer',fontSize:'1rem',
               display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
               WebkitTapHighlightColor:'transparent',
@@ -4228,7 +4228,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
         {/* Show tempos toggle */}
         <button onClick={()=>setShowTempos(t=>!t)} style={{
           position:'absolute',top:8,right:8,zIndex:15,
-          background:showTempos?'rgba(61,176,106,0.85)':'rgba(26,22,18,0.8)',
+          background:showTempos?'rgba(46,170,87,0.9)':'rgba(255,255,255,0.9)',
           border:`1px solid ${showTempos?'#3db06a':C.bord}`,
           color:showTempos?'white':C.muted,
           padding:'4px 10px',borderRadius:3,cursor:'pointer',
@@ -4315,7 +4315,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
             zIndex:501,background:'#fff',border:`2px solid #3db06a`,
             padding:'24px',width:'min(340px,88vw)',
             display:'flex',flexDirection:'column',gap:14,textAlign:'center',
-            boxShadow:'0 8px 40px rgba(0,0,0,0.8)'}}>
+            boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
               letterSpacing:'0.12em',color:'#3db06a'}}>
               10 CLEAN REPS! 🎉
@@ -4328,7 +4328,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
               {[2,5,10].map(n=>(
                 <button key={n} onClick={()=>advanceTempo(n)} style={{
                   flex:1,padding:'12px 0',
-                  background:n===incSize?'#3db06a':'#2a231d',
+                  background:n===incSize?'#3db06a':'#f0f0f0',
                   border:`1px solid ${n===incSize?'#3db06a':C.bord2}`,
                   color:n===incSize?'white':C.cream,
                   fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
@@ -4913,7 +4913,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
           </div>
 
           {/* Metronome */}
-          <button onClick={()=>setMetroOn(m=>!m)} style={{background:metroOn?C.accent:'#2a231d',border:`2px solid ${metroOn?C.accent:'#666'}`,color:'white',width:compact?36:44,height:compact?36:44,cursor:'pointer',fontSize:compact?'1rem':'1.2rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+          <button onClick={()=>setMetroOn(m=>!m)} style={{background:metroOn?C.accent:'#f0f0f0',border:`2px solid ${metroOn?C.accent:'#666'}`,color:'white',width:compact?36:44,height:compact?36:44,cursor:'pointer',fontSize:compact?'1rem':'1.2rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
             {metroOn?'⏸':'▶'}
           </button>
 
