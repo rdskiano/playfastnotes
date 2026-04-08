@@ -2294,9 +2294,9 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
           {showIntroModal && (
             <>
               <div onClick={()=>{setShowIntroModal(false);if(!interleavedMode)setSessionMode('massed');}} style={{
-                position:'fixed',inset:0,zIndex:49,background:'rgba(0,0,0,0.3)'}}/>
+                position:'absolute',inset:0,zIndex:49,background:'rgba(0,0,0,0.3)'}}/>
               <div style={{
-                position:'fixed',left:'50%',top:'50%',
+                position:'absolute',left:'50%',top:'50%',
                 transform:'translate(-50%,-50%)',
                 zIndex:50,background:'#fff',
                 borderRadius:16,padding:'24px',
