@@ -1378,7 +1378,11 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   const [timerLeft, setTimerLeft] = useState(null);
   const [timerRunning, setTimerRunning] = useState(false);
   const [showTimerPicker, setShowTimerPicker] = useState(false);
+  const [timerPos, setTimerPos] = useState({x:20, y:80}); // floating position
+  const [timerExpanded, setTimerExpanded] = useState(false);
+  const timerDragRef = useRef(null);
   const timerRef = useRef(null);
+  const [customMin, setCustomMin] = useState('');
 
   useEffect(()=>{
     if(!timerRunning || timerLeft==null) return;
@@ -1400,6 +1404,15 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     timerRef.current = setTimeout(()=>setTimerLeft(prev=>prev-1), 1000);
     return ()=>clearTimeout(timerRef.current);
   },[timerRunning, timerLeft]);
+
+  // Auto-pause timer on screen lock
+  useEffect(()=>{
+    const onVis = () => {
+      if(document.hidden && timerRunning) setTimerRunning(false);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return ()=>document.removeEventListener('visibilitychange', onVis);
+  },[timerRunning]);
 
   const fmtTimer = (s) => {
     const m = Math.floor(s/60), sec = s%60;
@@ -1843,74 +1856,116 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
           }}>
             <div style={{padding:'20px 24px 12px',textAlign:'center'}}>
               <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.4rem',
-                letterSpacing:'0.12em',color:'#1a1a1a'}}>
-                SET TIMER
-              </div>
+                letterSpacing:'0.12em',color:'#1a1a1a'}}>SET TIMER</div>
             </div>
-            <div style={{padding:'0 16px 20px',display:'flex',flexWrap:'wrap',gap:10,justifyContent:'center'}}>
-              {[5,10,15,20,30,45,60].map(min=>(
+            <div style={{padding:'0 16px 12px',display:'flex',flexWrap:'wrap',gap:8,justifyContent:'center'}}>
+              {[3,5,10,15,20,30,45,60].map(min=>(
                 <button key={min} onClick={()=>{
-                  setTimerTotal(min*60);
-                  setTimerLeft(min*60);
-                  setTimerRunning(true);
-                  setShowTimerPicker(false);
-                  setShowChrome(true);
+                  setTimerTotal(min*60); setTimerLeft(min*60);
+                  setTimerRunning(true); setShowTimerPicker(false); setCustomMin('');
                 }} style={{
-                  width:72,height:72,borderRadius:12,
+                  width:58,height:58,borderRadius:10,
                   background:'#fff',border:'2px solid #34a853',
-                  fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.6rem',
-                  letterSpacing:'0.05em',color:'#34a853',
-                  cursor:'pointer',WebkitTapHighlightColor:'transparent',
+                  fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
+                  color:'#34a853',cursor:'pointer',WebkitTapHighlightColor:'transparent',
                   display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
                 }}>
                   <span>{min}</span>
-                  <span style={{fontSize:'0.6rem',letterSpacing:'0.1em',color:'#888'}}>MIN</span>
+                  <span style={{fontSize:'0.5rem',letterSpacing:'0.1em',color:'#888'}}>MIN</span>
                 </button>
               ))}
+            </div>
+            <div style={{padding:'0 16px 20px',display:'flex',gap:8,alignItems:'center',justifyContent:'center'}}>
+              <input type="number" inputMode="numeric" placeholder="Custom" value={customMin}
+                onChange={e=>setCustomMin(e.target.value)}
+                style={{
+                  width:80,padding:'10px 12px',borderRadius:10,
+                  border:'2px solid #ccc',fontFamily:"'Bebas Neue',sans-serif",
+                  fontSize:'1.2rem',textAlign:'center',color:'#1a1a1a',outline:'none',
+                }}
+                onFocus={e=>{e.target.style.borderColor='#34a853'}}
+                onBlur={e=>{e.target.style.borderColor='#ccc'}}
+              />
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+                letterSpacing:'0.1em',color:'#888'}}>MIN</span>
+              <button onClick={()=>{
+                const m=parseInt(customMin);
+                if(m&&m>0){setTimerTotal(m*60);setTimerLeft(m*60);setTimerRunning(true);setShowTimerPicker(false);setCustomMin('');}
+              }} style={{
+                padding:'10px 18px',borderRadius:10,
+                background:customMin&&parseInt(customMin)>0?'#34a853':'#e0e0e0',border:'none',
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',letterSpacing:'0.1em',
+                color:customMin&&parseInt(customMin)>0?'#fff':'#999',
+                cursor:customMin&&parseInt(customMin)>0?'pointer':'default',
+              }}>GO</button>
             </div>
           </div>
         </>
       )}
 
-      {/* Timer countdown bar */}
+      {/* Floating draggable timer pill */}
       {timerLeft != null && timerLeft > 0 && (
-        <div style={{
-          position:'absolute',bottom:0,left:0,right:0,zIndex:30,
-          background:'rgba(255,255,255,0.95)',backdropFilter:'blur(8px)',
-          WebkitBackdropFilter:'blur(8px)',
-          borderTop:'1px solid rgba(0,0,0,0.1)',
-          padding:'10px 20px',
-          display:'flex',alignItems:'center',gap:12,
-        }}>
-          {/* progress bar */}
-          <div style={{flex:1,height:4,background:'#e0e0e0',borderRadius:2,overflow:'hidden'}}>
-            <div style={{
-              height:'100%',background:'#34a853',borderRadius:2,
-              width:`${((timerTotal-timerLeft)/timerTotal)*100}%`,
-              transition:'width 1s linear',
-            }}/>
-          </div>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.5rem',
-            letterSpacing:'0.05em',color:timerLeft<=60?C.accent:'#34a853',minWidth:60,textAlign:'right'}}>
+        <div
+          onTouchStart={e=>{
+            const t=e.touches[0];
+            timerDragRef.current={sx:t.clientX-timerPos.x, sy:t.clientY-timerPos.y, moved:false};
+          }}
+          onTouchMove={e=>{
+            if(!timerDragRef.current) return;
+            e.preventDefault();
+            const t=e.touches[0];
+            timerDragRef.current.moved=true;
+            setTimerPos({x:t.clientX-timerDragRef.current.sx, y:t.clientY-timerDragRef.current.sy});
+          }}
+          onTouchEnd={()=>{
+            if(timerDragRef.current && !timerDragRef.current.moved) setTimerExpanded(p=>!p);
+            timerDragRef.current=null;
+          }}
+          style={{
+            position:'absolute',left:timerPos.x,top:timerPos.y,zIndex:40,
+            background: timerRunning
+              ? 'rgba(52,168,83,0.85)'
+              : 'rgba(150,150,150,0.85)',
+            backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
+            borderRadius: timerExpanded ? 16 : 24,
+            padding: timerExpanded ? '12px 16px' : '8px 16px',
+            boxShadow:'0 4px 20px rgba(0,0,0,0.2)',
+            cursor:'grab',touchAction:'none',userSelect:'none',WebkitUserSelect:'none',
+            display:'flex',flexDirection: timerExpanded?'column':'row',
+            alignItems:'center',gap: timerExpanded?8:10,
+            transition:'border-radius 0.2s, padding 0.2s',
+          }}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",
+            fontSize: timerExpanded?'2rem':'1.3rem',
+            letterSpacing:'0.05em',color:'#fff',lineHeight:1}}>
             {fmtTimer(timerLeft)}
           </div>
-          <button onClick={()=>{
-            if(timerRunning) { setTimerRunning(false); }
-            else { setTimerRunning(true); }
-          }} style={{
-            background:'none',border:`1px solid #ccc`,borderRadius:8,
-            padding:'4px 12px',fontFamily:"'Bebas Neue',sans-serif",
-            fontSize:'0.75rem',letterSpacing:'0.08em',color:'#666',
-            cursor:'pointer',WebkitTapHighlightColor:'transparent',
-          }}>{timerRunning?'PAUSE':'RESUME'}</button>
-          <button onClick={()=>{
-            setTimerLeft(null); setTimerTotal(null); setTimerRunning(false);
-          }} style={{
-            background:'none',border:`1px solid #ccc`,borderRadius:8,
-            padding:'4px 10px',fontFamily:"'Bebas Neue',sans-serif",
-            fontSize:'0.75rem',letterSpacing:'0.08em',color:'#999',
-            cursor:'pointer',WebkitTapHighlightColor:'transparent',
-          }}>✕</button>
+          {!timerExpanded && (
+            <div style={{width:30,height:3,background:'rgba(255,255,255,0.4)',borderRadius:2,overflow:'hidden'}}>
+              <div style={{height:'100%',background:'rgba(255,255,255,0.8)',borderRadius:2,
+                width:`${((timerTotal-timerLeft)/timerTotal)*100}%`}}/>
+            </div>
+          )}
+          {timerExpanded && (<>
+            <div style={{width:'100%',height:3,background:'rgba(255,255,255,0.3)',borderRadius:2,overflow:'hidden'}}>
+              <div style={{height:'100%',background:'rgba(255,255,255,0.8)',borderRadius:2,
+                width:`${((timerTotal-timerLeft)/timerTotal)*100}%`}}/>
+            </div>
+            <div style={{display:'flex',gap:6}}>
+              <button onClick={e=>{e.stopPropagation();setTimerRunning(p=>!p);}} style={{
+                background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.4)',
+                borderRadius:8,padding:'4px 14px',fontFamily:"'Bebas Neue',sans-serif",
+                fontSize:'0.75rem',letterSpacing:'0.08em',color:'#fff',cursor:'pointer',
+                WebkitTapHighlightColor:'transparent',
+              }}>{timerRunning?'PAUSE':'RESUME'}</button>
+              <button onClick={e=>{e.stopPropagation();setTimerLeft(null);setTimerTotal(null);setTimerRunning(false);setTimerExpanded(false);}} style={{
+                background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.4)',
+                borderRadius:8,padding:'4px 10px',fontFamily:"'Bebas Neue',sans-serif",
+                fontSize:'0.75rem',letterSpacing:'0.08em',color:'#fff',cursor:'pointer',
+                WebkitTapHighlightColor:'transparent',
+              }}>✕</button>
+            </div>
+          </>)}
         </div>
       )}
 
@@ -1927,28 +1982,19 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             maxWidth:'85vw',
           }}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2rem',
-              letterSpacing:'0.12em',color:'#34a853',marginBottom:8}}>
-              TIME'S UP
-            </div>
+              letterSpacing:'0.12em',color:'#34a853',marginBottom:8}}>TIME'S UP</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
               fontSize:'1.1rem',color:'#666',marginBottom:20}}>
-              {Math.round(timerTotal/60)} minute{timerTotal>60?'s':''} completed
+              {Math.round(timerTotal/60)} minute{timerTotal>=120?'s':''} completed
             </div>
             <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-              <button onClick={()=>{
-                setTimerLeft(null); setTimerTotal(null);
-              }} style={{
-                padding:'10px 24px',borderRadius:10,
-                background:'#f0f0f0',border:'none',
+              <button onClick={()=>{setTimerLeft(null);setTimerTotal(null);}} style={{
+                padding:'10px 24px',borderRadius:10,background:'#f0f0f0',border:'none',
                 fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
                 letterSpacing:'0.1em',color:'#666',cursor:'pointer',
               }}>DONE</button>
-              <button onClick={()=>{
-                setTimerLeft(timerTotal);
-                setTimerRunning(true);
-              }} style={{
-                padding:'10px 24px',borderRadius:10,
-                background:'#34a853',border:'none',
+              <button onClick={()=>{setTimerLeft(timerTotal);setTimerRunning(true);}} style={{
+                padding:'10px 24px',borderRadius:10,background:'#34a853',border:'none',
                 fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
                 letterSpacing:'0.1em',color:'#fff',cursor:'pointer',
               }}>RESTART</button>
