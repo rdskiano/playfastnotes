@@ -390,6 +390,8 @@ export default function App() {
   const [scuSpot,setScuSpot]           = useState(null); // spot data for Slow Click Up
   const [spotPicker,setSpotPicker]     = useState(null); // {nearby:[], tapPos:{}}
   const [selectedSpot,setSelectedSpot] = useState(null); // spot object from picker
+  const [strategyNote, setStrategyNote] = useState(null); // {strategy, returnScreen} — pending notes prompt
+  const [noteText, setNoteText] = useState('');
   const N = markers.length;
 
   const saveProf = p => { setProfile(p); setProfileState(p); };
@@ -459,6 +461,74 @@ export default function App() {
             else { setScreen('score'); }
           }}
         />
+      )}
+
+      {/* Strategy completion notes prompt */}
+      {strategyNote && (
+        <>
+          <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(0,0,0,0.4)'}}
+            onClick={()=>setStrategyNote(null)} />
+          <div style={{
+            position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
+            zIndex:201,background:'#fff',borderRadius:16,
+            width:'min(420px,90vw)',
+            boxShadow:'0 12px 48px rgba(0,0,0,0.2)',
+            display:'flex',flexDirection:'column',overflow:'hidden',
+          }}>
+            <div style={{padding:'20px 24px 8px',textAlign:'center'}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
+                letterSpacing:'0.12em',color:'#1a1a1a'}}>
+                {stratName(strategyNote.strategy).toUpperCase()} COMPLETE
+              </div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                fontSize:'1rem',color:'#888',marginTop:4}}>
+                Any notes about this session?
+              </div>
+            </div>
+            <div style={{padding:'8px 20px 16px'}}>
+              <textarea value={noteText} onChange={e=>setNoteText(e.target.value)}
+                placeholder="What went well? What needs work? Any observations..."
+                rows={4}
+                style={{
+                  width:'100%',padding:'12px 14px',borderRadius:10,
+                  border:'1.5px solid #ddd',fontFamily:"'Cormorant Garamond',serif",
+                  fontSize:'1.05rem',color:'#1a1a1a',resize:'vertical',
+                  outline:'none',boxSizing:'border-box',lineHeight:1.5,
+                }}
+                onFocus={e=>{e.target.style.borderColor=C.accent}}
+                onBlur={e=>{e.target.style.borderColor='#ddd'}}
+              />
+            </div>
+            <div style={{padding:'0 20px 20px',display:'flex',gap:10}}>
+              <button onClick={()=>setStrategyNote(null)} style={{
+                flex:1,padding:'12px',borderRadius:10,
+                background:'#f0f0f0',border:'none',
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                letterSpacing:'0.1em',color:'#666',cursor:'pointer',
+              }}>SKIP</button>
+              <button onClick={async ()=>{
+                if(noteText.trim() && profile?.email) {
+                  try {
+                    await sbPost('/rest/v1/practice_logs', {
+                      user_email: profile.email,
+                      piece_id: piece?.id||null,
+                      spot_id: null,
+                      strategy: strategyNote.strategy,
+                      notes: noteText.trim(),
+                      session_date: new Date().toISOString().split('T')[0],
+                    });
+                  } catch(e){}
+                }
+                setStrategyNote(null);
+              }} style={{
+                flex:1,padding:'12px',borderRadius:10,
+                background:noteText.trim()?C.accent:'#e0e0e0',border:'none',
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                letterSpacing:'0.1em',color:noteText.trim()?'#fff':'#999',cursor:'pointer',
+              }}>SAVE NOTE</button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Score view — home base for a piece */}
@@ -689,7 +759,7 @@ export default function App() {
           startTempo={startTempo} goalTempo={goalTempo} increment={increment}
           profile={profile} piece={piece} tapPos={tapPos}
           onBack={()=>setScreen('params')}
-          onDone={()=>setScreen('score')}
+          onDone={()=>{setStrategyNote({strategy:'icu'}); setNoteText(''); setScreen('score');}}
         />
       )}
 
@@ -706,7 +776,7 @@ export default function App() {
         <InterleavedSessionScreen
           pageImages={pageImages}
           spots={interleavedSpots}
-          onBack={()=>{ setInterleavedSpots([]); setSessionMode('massed'); setScreen('score'); }}
+          onBack={()=>{ setStrategyNote({strategy:'interleaved'}); setNoteText(''); setInterleavedSpots([]); setSessionMode('massed'); setScreen('score'); }}
         />
       )}
 
@@ -718,7 +788,7 @@ export default function App() {
           tapPos={tapPos}
           scuSpot={scuSpot}
           onBack={()=>setScreen('score')}
-          onDone={()=>setScreen('score')}
+          onDone={()=>{setStrategyNote({strategy:'scu'}); setNoteText(''); setScreen('score');}}
         />
       )}
 
@@ -1785,27 +1855,6 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
                 </div>
               </button>
 
-              {/* Timer */}
-              <button onClick={()=>{
-                setSessionMode('massed');
-                setShowSessionPicker(false);
-                setShowChrome(false);
-                setShowTimerPicker(true);
-              }} style={{
-                padding:'16px 20px',background:'#fff',
-                border:'2px solid #34a853',borderRadius:12,
-                cursor:'pointer',textAlign:'left',width:'100%',
-                WebkitTapHighlightColor:'transparent',
-                display:'flex',flexDirection:'column',gap:4,
-              }}>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.15rem',
-                  letterSpacing:'0.1em',color:'#34a853'}}>TIMER</div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                  fontSize:'1rem',color:'#666',lineHeight:1.4}}>
-                  Set a timer and practice freely until it goes off
-                </div>
-              </button>
-
               {/* Memorization */}
               <div style={{
                 padding:'16px 20px',background:'#fafafa',
@@ -2093,7 +2142,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         }}>
           <div style={{display:'flex',alignItems:'center',gap:6,minWidth:80}}>
             <BackBtn onClick={onBack} />
-            {!locateEx && !isInterleaved && (
+            {!locateEx && !isInterleaved && (<>
               <button onClick={()=>onLaunchStrategy('journal', {page:currentPage, x:0.5, y:0.5})} style={{
                 background:'rgba(0,0,0,0.06)',border:'none',
                 color:'#666',padding:'4px 10px',borderRadius:12,
@@ -2101,7 +2150,16 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
                 letterSpacing:'0.08em',cursor:'pointer',
                 WebkitTapHighlightColor:'transparent',
               }}>📋 JOURNAL</button>
-            )}
+              <button onClick={()=>setShowTimerPicker(true)} style={{
+                background: timerLeft!=null ? 'rgba(52,168,83,0.15)' : 'rgba(0,0,0,0.06)',
+                border: timerLeft!=null ? '1px solid rgba(52,168,83,0.3)' : 'none',
+                color: timerLeft!=null ? '#34a853' : '#666',
+                padding:'4px 10px',borderRadius:12,
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
+                letterSpacing:'0.08em',cursor:'pointer',
+                WebkitTapHighlightColor:'transparent',
+              }}>⏱</button>
+            </>)}
           </div>
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
             letterSpacing:'0.15em',color:'#1a1a1a',textAlign:'center'}}>
@@ -2128,7 +2186,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
                 letterSpacing:'0.08em',padding:'6px 12px',borderRadius:6,
                 background:'#f0f0f0',color:'#666',border:`1px solid #ddd`,
                 cursor:'pointer',WebkitTapHighlightColor:'transparent',
-              }}>{isInterleaved ? 'INTERLEAVED' : (timerLeft!=null ? 'TIMER' : 'BLOCKED')} ▾</button>
+              }}>{isInterleaved ? 'INTERLEAVED' : 'BLOCKED'} ▾</button>
             )}
             {isInterleaved && !locateEx && (
               <button onClick={onStartSession} disabled={interleavedSpots.length<3} style={{
