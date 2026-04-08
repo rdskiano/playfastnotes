@@ -614,7 +614,8 @@ export default function App() {
                 } catch(e) { console.error('spot check failed', e); }
               }
               setSpotSetup({tapPos:pos, nearby});
-              setSpotName('');
+              const region = pos.y < 0.33 ? 'top' : pos.y < 0.66 ? 'middle' : 'bottom';
+              setSpotName(`Page ${pos.page+1}, ${region}`);
             }
           }}
         />
@@ -776,7 +777,7 @@ export default function App() {
           startTempo={startTempo} goalTempo={goalTempo} increment={increment}
           profile={profile} piece={piece} tapPos={tapPos}
           onBack={()=>setScreen('params')}
-          onDone={()=>{setStrategyNote({strategy:'icu'}); setNoteText(''); setScreen('score');}}
+          onDone={()=>{setShowOverlay(false);setStrategyNote({strategy:'icu'}); setNoteText(''); setScreen('score');}}
         />
       )}
 
@@ -785,7 +786,7 @@ export default function App() {
           piece={piece} pageImages={pageImages}
           profile={profile} savedExercise={savedExercise}
           tapPos={tapPos}
-          onBack={()=>setScreen(piece?'score':'library')}
+          onBack={()=>{setShowOverlay(false); setStrategyNote({strategy:'mur'}); setNoteText(''); setScreen(piece?'score':'library');}}
         />
       )}
 
@@ -807,7 +808,7 @@ export default function App() {
           tapPos={tapPos}
           scuSpot={scuSpot}
           onBack={()=>setScreen('score')}
-          onDone={()=>{setStrategyNote({strategy:'scu'}); setNoteText(''); setScreen('score');}}
+          onDone={()=>{setShowOverlay(false);setStrategyNote({strategy:'scu'}); setNoteText(''); setScreen('score');}}
         />
       )}
 
