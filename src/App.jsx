@@ -392,6 +392,8 @@ export default function App() {
   const [scuSpot,setScuSpot]           = useState(null); // spot data for Slow Click Up
   const [spotPicker,setSpotPicker]     = useState(null); // {nearby:[], tapPos:{}}
   const [selectedSpot,setSelectedSpot] = useState(null); // spot object from picker
+  const [spotSetup, setSpotSetup]      = useState(null); // {tapPos, nearby[], spotName}
+  const [spotName, setSpotName]        = useState('');
   const [strategyNote, setStrategyNote] = useState(null); // {strategy, returnScreen} — pending notes prompt
   const [noteText, setNoteText] = useState('');
   const N = markers.length;
@@ -601,108 +603,119 @@ export default function App() {
                 return [...prev,{id:prev.length+1,page:pos.page,x:pos.x,y:pos.y,checks:0,bpm:null}];
               });
             } else {
-              // Check for nearby existing spots
+              // Blocked mode: show spot setup (name or pick existing)
               const prof = profile || getProfile();
+              let nearby = [];
               if(prof.email && piece?.id) {
                 try {
                   const r = await sbGet(`/rest/v1/practice_spots?user_email=eq.${encodeURIComponent(prof.email)}&piece_id=eq.${piece.id}&score_page=eq.${pos.page}`);
                   const allSpots = await r.json()||[];
-                  const nearby = allSpots.filter(s => Math.abs(s.score_y - pos.y) < 0.20);
-                  if(nearby.length > 0) {
-                    setSpotPicker({nearby, tapPos:pos});
-                    return;
-                  }
+                  nearby = allSpots.filter(s => Math.abs(s.score_y - pos.y) < 0.20);
                 } catch(e) { console.error('spot check failed', e); }
               }
-              setTapPos(pos);
-              setShowOverlay(true);
+              setSpotSetup({tapPos:pos, nearby});
+              setSpotName('');
             }
           }}
         />
       )}
 
-      {/* Spot picker — shown when tapping near existing spots */}
-      {spotPicker && (
+      {/* Spot setup — name new spot or pick existing */}
+      {spotSetup && (
         <>
-          <div onClick={()=>setSpotPicker(null)} style={{
+          <div onClick={()=>setSpotSetup(null)} style={{
             position:'fixed',inset:0,zIndex:400,background:'rgba(0,0,0,0.25)'}}/>
           <div style={{
             position:'fixed',left:'50%',bottom:0,transform:'translateX(-50%)',
             zIndex:401,background:'#fff',borderTop:`1px solid ${C.bord}`,
             borderRadius:'16px 16px 0 0',
-            width:'min(420px,100vw)',maxHeight:'50vh',
+            width:'min(420px,100vw)',maxHeight:'60vh',
             boxShadow:'0 -4px 24px rgba(0,0,0,0.12)',
             display:'flex',flexDirection:'column',overflow:'hidden',
           }}>
             <div style={{display:'flex',justifyContent:'center',padding:'10px 0 0'}}>
               <div style={{width:40,height:4,borderRadius:2,background:'#ddd'}}/>
             </div>
-            <div style={{padding:'12px 20px 6px'}}>
+
+            {/* New spot name input */}
+            <div style={{padding:'12px 20px 8px'}}>
               <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
                 letterSpacing:'0.12em',color:'#1a1a1a'}}>
-                PRACTICE AT AN EXISTING SPOT?
+                NAME THIS SPOT
               </div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                fontSize:'1rem',color:'#666',marginTop:4}}>
-                You tapped near {spotPicker.nearby.length} saved spot{spotPicker.nearby.length!==1?'s':''}
-              </div>
-            </div>
-            <div style={{overflowY:'auto',padding:'8px 20px 16px',display:'flex',flexDirection:'column',gap:8,
-              WebkitOverflowScrolling:'touch'}}>
-              {spotPicker.nearby.map(sp=>(
-                <button key={sp.id} onClick={()=>{
-                  const pos = {page:sp.score_page, x:sp.score_x, y:sp.score_y};
-                  setSpotPicker(null);
-                  setSelectedSpot(sp);
-                  setTapPos(pos);
+              <input type="text" value={spotName} onChange={e=>setSpotName(e.target.value)}
+                placeholder="e.g. m.32 run, opening phrase, coda..."
+                autoFocus
+                style={{
+                  width:'100%',padding:'12px 14px',borderRadius:10,marginTop:8,
+                  border:'1.5px solid #ddd',fontFamily:"'Cormorant Garamond',serif",
+                  fontSize:'1.05rem',color:'#1a1a1a',outline:'none',boxSizing:'border-box',
+                }}
+                onFocus={e=>{e.target.style.borderColor=C.accent}}
+                onBlur={e=>{e.target.style.borderColor='#ddd'}}
+                onKeyDown={e=>{if(e.key==='Enter' && spotName.trim()){
+                  setSpotSetup(null);
+                  setSelectedSpot(null);
+                  setTapPos({...spotSetup.tapPos, label:spotName.trim()});
                   setShowOverlay(true);
-                }} style={{
-                  display:'flex',alignItems:'center',gap:12,
-                  padding:'14px 16px',background:'#fafafa',
-                  border:`1px solid ${C.bord}`,borderRadius:10,
-                  cursor:'pointer',textAlign:'left',width:'100%',
-                  WebkitTapHighlightColor:'transparent',
-                }}>
-                  {sp.perf_tempo && (
-                    <div style={{background:'rgba(46,170,87,0.12)',border:'1px solid #2eaa57',
-                      borderRadius:6,padding:'2px 8px',flexShrink:0}}>
-                      <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
-                        color:'#2eaa57'}}>{sp.start_tempo||'?'}/{sp.perf_tempo}</span>
-                    </div>
-                  )}
-                  <div style={{flex:1}}>
-                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
-                      letterSpacing:'0.08em',color:'#1a1a1a'}}>
-                      {sp.label || 'Unlabeled spot'}
-                    </div>
-                    {sp.perf_tempo && (
-                      <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',
-                        color:'#999',marginTop:2}}>
-                        goal: ♩ = {sp.perf_tempo}
-                      </div>
-                    )}
-                  </div>
-                  <span style={{color:'#ccc',fontSize:'1.2rem'}}>›</span>
-                </button>
-              ))}
+                }}}
+              />
               <button onClick={()=>{
-                setSpotPicker(null);
-                setSelectedSpot(null);
-                setTapPos(spotPicker.tapPos);
-                setShowOverlay(true);
+                if(spotName.trim()){
+                  setSpotSetup(null);
+                  setSelectedSpot(null);
+                  setTapPos({...spotSetup.tapPos, label:spotName.trim()});
+                  setShowOverlay(true);
+                }
               }} style={{
-                display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-                padding:'14px 16px',background:'#fff',
-                border:`2px dashed ${C.bord}`,borderRadius:10,
-                cursor:'pointer',width:'100%',
-                WebkitTapHighlightColor:'transparent',
-              }}>
-                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
-                  letterSpacing:'0.08em',color:'#999'}}>
-                  + NEW SPOT HERE
-                </span>
-              </button>
+                width:'100%',marginTop:8,padding:'12px',borderRadius:10,
+                background:spotName.trim()?C.accent:'#e0e0e0',border:'none',
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                letterSpacing:'0.1em',color:spotName.trim()?'#fff':'#999',
+                cursor:spotName.trim()?'pointer':'default',
+              }}>CHOOSE STRATEGY →</button>
             </div>
+
+            {/* Existing spots nearby */}
+            {spotSetup.nearby.length > 0 && (
+              <div style={{padding:'4px 20px 16px'}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.8rem',
+                  letterSpacing:'0.1em',color:'#999',marginBottom:8}}>
+                  OR SELECT AN EXISTING SPOT
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:6,
+                  maxHeight:'25vh',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+                  {spotSetup.nearby.map(sp=>(
+                    <button key={sp.id} onClick={()=>{
+                      setSpotSetup(null);
+                      setSelectedSpot(sp);
+                      setTapPos({page:sp.score_page, x:sp.score_x, y:sp.score_y});
+                      setShowOverlay(true);
+                    }} style={{
+                      display:'flex',alignItems:'center',gap:12,
+                      padding:'12px 14px',background:'#fafafa',
+                      border:`1px solid ${C.bord}`,borderRadius:10,
+                      cursor:'pointer',textAlign:'left',width:'100%',
+                      WebkitTapHighlightColor:'transparent',
+                    }}>
+                      <div style={{flex:1}}>
+                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                          letterSpacing:'0.08em',color:'#1a1a1a'}}>
+                          {sp.label || 'Unlabeled spot'}
+                        </div>
+                        {sp.perf_tempo && (
+                          <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+                            color:'#999',marginTop:2}}>
+                            goal: ♩ = {sp.perf_tempo}
+                          </div>
+                        )}
+                      </div>
+                      <span style={{color:'#ccc',fontSize:'1.2rem'}}>›</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -2290,9 +2303,17 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
               }}>⏱</button>
             </>)}
           </div>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
-            letterSpacing:'0.15em',color:'#1a1a1a',textAlign:'center'}}>
-            {locateEx ? 'LOCATE EXERCISE' : (piece?.title||'SCORE')}
+          <div style={{textAlign:'center',flex:1,minWidth:0}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
+              letterSpacing:'0.12em',color:'#1a1a1a',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+              {locateEx ? 'LOCATE EXERCISE' : (piece?.title||'SCORE')}
+            </div>
+            {!locateEx && !isInterleaved && (
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                fontSize:'0.8rem',color:'#999',marginTop:-1}}>
+                Long tap a spot to practice
+              </div>
+            )}
           </div>
           <div style={{display:'flex',gap:4,alignItems:'center',justifyContent:'flex-end'}}>
             {!locateEx && (
