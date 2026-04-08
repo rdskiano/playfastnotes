@@ -1655,8 +1655,8 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             minWidth:72,textAlign:'center',flexShrink:0}}>♩ = {placeMetroBpm}</span>
           <button onClick={toggleMetro} style={{
             background: metroWaiting?'#4a9eff':placeMetroOn?C.accent:'#f0f0f0',
-            border:`2px solid ${metroWaiting?'#4a9eff':placeMetroOn?C.accent:'#666'}`,
-            color:'white',width:36,height:36,cursor:'pointer',flexShrink:0,
+            border:`2px solid ${metroWaiting?'#4a9eff':placeMetroOn?C.accent:'#ccc'}`,
+            color:(metroWaiting||placeMetroOn)?'white':'#333',width:36,height:36,cursor:'pointer',flexShrink:0,
             fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',
             WebkitTapHighlightColor:'transparent',
             boxShadow:metroWaiting?'0 0 0 3px rgba(74,158,255,0.35)':'none',
@@ -2128,8 +2128,8 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, onBack }) {
               if(next) metro.current.start(metroBpm); else metro.current.stop();
             }} style={{
               background:metroOn?C.accent:'#f0f0f0',
-              border:`2px solid ${metroOn?C.accent:'#666'}`,
-              color:'white',width:36,height:36,cursor:'pointer',
+              border:`2px solid ${metroOn?C.accent:'#ccc'}`,
+              color:metroOn?'white':'#333',width:36,height:36,cursor:'pointer',
               fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',
               flexShrink:0,WebkitTapHighlightColor:'transparent',
             }}>{metroOn?'⏸':'▶'}</button>
@@ -4175,8 +4175,8 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
 
             {/* Metronome */}
             <button onClick={()=>setMetroOn(m=>!m)} style={{
-              background:metroOn?'#3db06a':'#f0f0f0',border:`2px solid ${metroOn?'#3db06a':'#666'}`,
-              color:'white',width:36,height:36,cursor:'pointer',fontSize:'1rem',
+              background:metroOn?'#3db06a':'#f0f0f0',border:`2px solid ${metroOn?'#3db06a':'#ccc'}`,
+              color:metroOn?'white':'#333',width:36,height:36,cursor:'pointer',fontSize:'1rem',
               display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
               WebkitTapHighlightColor:'transparent',
             }}>{metroOn?'⏸':'▶'}</button>
@@ -4928,7 +4928,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
           </div>
 
           {/* Metronome */}
-          <button onClick={()=>setMetroOn(m=>!m)} style={{background:metroOn?C.accent:'#f0f0f0',border:`2px solid ${metroOn?C.accent:'#666'}`,color:'white',width:compact?36:44,height:compact?36:44,cursor:'pointer',fontSize:compact?'1rem':'1.2rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+          <button onClick={()=>setMetroOn(m=>!m)} style={{background:metroOn?C.accent:'#f0f0f0',border:`2px solid ${metroOn?C.accent:'#ccc'}`,color:metroOn?'white':'#333',width:compact?36:44,height:compact?36:44,cursor:'pointer',fontSize:compact?'1rem':'1.2rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
             {metroOn?'⏸':'▶'}
           </button>
 
