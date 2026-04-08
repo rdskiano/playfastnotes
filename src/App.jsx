@@ -2081,28 +2081,32 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
       {/* Instruction card — blocked mode */}
       {showInstructions && !isInterleaved && !locateEx && !showSessionPicker && (
         <div style={{
-          position:'absolute',bottom:20,left:'50%',transform:'translateX(-50%)',
-          zIndex:30,background:'rgba(255,255,255,0.97)',
-          backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',
-          borderRadius:14,padding:'16px 20px',
-          boxShadow:'0 4px 24px rgba(0,0,0,0.12)',
-          border:'1px solid rgba(0,0,0,0.08)',
-          maxWidth:'min(360px,88vw)',textAlign:'center',
+          position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
+          zIndex:30,background:'rgba(255,255,255,0.98)',
+          backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
+          borderRadius:20,padding:'28px 32px',
+          boxShadow:'0 8px 40px rgba(0,0,0,0.15)',
+          border:`2px solid ${C.accent}`,
+          maxWidth:'min(400px,88vw)',textAlign:'center',
         }}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
+            letterSpacing:'0.12em',color:C.accent,marginBottom:12}}>
+            GETTING STARTED
+          </div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",
-            fontSize:'1.05rem',color:'#555',lineHeight:1.5}}>
+            fontSize:'1.15rem',color:'#444',lineHeight:1.6}}>
             Tap the beginning of a passage to practice. Name the spot to save exercises and update your practice journal.
           </div>
-          <div style={{display:'flex',gap:8,justifyContent:'center',marginTop:12}}>
+          <div style={{display:'flex',gap:10,justifyContent:'center',marginTop:18}}>
             <button onClick={()=>setShowInstructions(false)} style={{
-              padding:'8px 18px',borderRadius:8,background:'#f0f0f0',border:'none',
-              fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
-              letterSpacing:'0.08em',color:'#666',cursor:'pointer',
-            }}>OK</button>
+              padding:'10px 24px',borderRadius:10,background:C.accent,border:'none',
+              fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+              letterSpacing:'0.1em',color:'#fff',cursor:'pointer',
+            }}>GOT IT</button>
             <button onClick={()=>{setShowInstructions(false);localStorage.setItem('pfn_hideScoreInstructions','1');}} style={{
-              padding:'8px 18px',borderRadius:8,background:'transparent',border:'none',
+              padding:'10px 20px',borderRadius:10,background:'transparent',border:'none',
               fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-              fontSize:'0.85rem',color:'#aaa',cursor:'pointer',
+              fontSize:'0.95rem',color:'#aaa',cursor:'pointer',
             }}>Don't show again</button>
           </div>
         </div>
