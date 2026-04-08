@@ -1372,6 +1372,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   const totalPages = pageImages.length;
   const showTwo = land && totalPages > 1;
   const rightPage = currentPage + 1 < totalPages ? currentPage + 1 : null;
+  const [showSessionPicker, setShowSessionPicker] = useState(true);
   // Practice spots with per-strategy log summaries
   const [practiceSpots, setPracticeSpots] = useState([]);
   const [draggingSpot, setDraggingSpot] = useState(null);
@@ -1561,13 +1562,22 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     const elapsed = Date.now() - touchRef.current.startTime;
     // Swipe detection
     if(Math.abs(dx) > 60 && elapsed < 400) {
-      if(dx < 0 && currentPage < totalPages - 1) setCurrentPage(p=>p+1);
-      if(dx > 0 && currentPage > 0) setCurrentPage(p=>p-1);
+      if(dx < 0 && currentPage < totalPages - 1) setCurrentPage(p=> showTwo ? p+2 : p+1);
+      if(dx > 0 && currentPage > 0) setCurrentPage(p=> showTwo ? Math.max(0,p-2) : p-1);
       return;
     }
-    // Quick tap — toggle chrome
+    // Quick tap — check edges for page turn, center for chrome toggle
     if(!touchRef.current.moved && elapsed < 300) {
-      setShowChrome(c=>!c);
+      const screenW = window.innerWidth;
+      const tapX = endX;
+      const edgeZone = screenW * 0.15;
+      if(tapX < edgeZone && currentPage > 0) {
+        setCurrentPage(p=> showTwo ? Math.max(0,p-2) : p-1);
+      } else if(tapX > screenW - edgeZone && currentPage < totalPages - 1) {
+        setCurrentPage(p=> showTwo ? Math.min(totalPages-1, p+2) : p+1);
+      } else {
+        setShowChrome(c=>!c);
+      }
     }
   };
 
@@ -1575,7 +1585,16 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   const handleClick = (e) => {
     if(isInterleaved || locateEx) return;
     if(touchHandled.current) { touchHandled.current = false; return; }
-    setShowChrome(c=>!c);
+    const screenW = window.innerWidth;
+    const tapX = e.clientX;
+    const edgeZone = screenW * 0.15;
+    if(tapX < edgeZone && currentPage > 0) {
+      setCurrentPage(p=> showTwo ? Math.max(0,p-2) : p-1);
+    } else if(tapX > screenW - edgeZone && currentPage < totalPages - 1) {
+      setCurrentPage(p=> showTwo ? Math.min(totalPages-1, p+2) : p+1);
+    } else {
+      setShowChrome(c=>!c);
+    }
   };
 
   const handleLongTap = (e) => {
@@ -1639,8 +1658,183 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   };
 
   return (
-    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,position:'relative'}}>
-      {/* Chrome overlay — translucent top bar, toggleable */}
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,position:'relative',background:'#e8e5e0'}}>
+
+      {/* Session type picker overlay */}
+      {showSessionPicker && !locateEx && (
+        <>
+          <div onClick={()=>setShowSessionPicker(false)} style={{
+            position:'absolute',inset:0,zIndex:50,background:'rgba(0,0,0,0.25)'}}/>
+          <div style={{
+            position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',
+            zIndex:51,background:'#fff',borderRadius:16,
+            width:'min(420px,90vw)',
+            boxShadow:'0 12px 48px rgba(0,0,0,0.15)',
+            display:'flex',flexDirection:'column',overflow:'hidden',
+          }}>
+            <div style={{padding:'20px 24px 12px',textAlign:'center'}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.4rem',
+                letterSpacing:'0.12em',color:'#1a1a1a'}}>
+                WHAT TYPE OF SESSION?
+              </div>
+            </div>
+            <div style={{padding:'0 16px 20px',display:'flex',flexDirection:'column',gap:10}}>
+              {/* Blocked */}
+              <button onClick={()=>{
+                setSessionMode('massed');
+                setShowSessionPicker(false);
+                setShowChrome(false);
+              }} style={{
+                padding:'16px 20px',background:'#fff',
+                border:`2px solid ${C.accent}`,borderRadius:12,
+                cursor:'pointer',textAlign:'left',width:'100%',
+                WebkitTapHighlightColor:'transparent',
+                display:'flex',flexDirection:'column',gap:4,
+              }}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.15rem',
+                  letterSpacing:'0.1em',color:C.accent}}>ONE PASSAGE AT A TIME</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                  fontSize:'1rem',color:'#666',lineHeight:1.4}}>
+                  Blocked — ideal for early stages of learning
+                </div>
+              </button>
+
+              {/* Interleaved */}
+              <button onClick={()=>{
+                setSessionMode('interleaved');
+                setShowSessionPicker(false);
+                setShowChrome(true);
+                if(!localStorage.getItem('pfn_hideInterleavedIntro')) setShowIntroModal(true);
+              }} style={{
+                padding:'16px 20px',background:'#fff',
+                border:'2px solid #4a9eff',borderRadius:12,
+                cursor:'pointer',textAlign:'left',width:'100%',
+                WebkitTapHighlightColor:'transparent',
+                display:'flex',flexDirection:'column',gap:4,
+              }}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.15rem',
+                  letterSpacing:'0.1em',color:'#4a9eff'}}>ROTATE BETWEEN SEVERAL PASSAGES</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                  fontSize:'1rem',color:'#666',lineHeight:1.4}}>
+                  Interleaved — ideal for later in the learning process
+                </div>
+              </button>
+
+              {/* Memorization */}
+              <div style={{
+                padding:'16px 20px',background:'#fafafa',
+                border:'1px solid #e0e0e0',borderRadius:12,
+                opacity:0.5,
+                display:'flex',flexDirection:'column',gap:4,
+              }}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.15rem',
+                  letterSpacing:'0.1em',color:'#999'}}>MEMORIZATION</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                  fontSize:'1rem',color:'#aaa',lineHeight:1.4}}>
+                  Still in development
+                </div>
+              </div>
+
+              {/* Mock Performance */}
+              <div style={{
+                padding:'16px 20px',background:'#fafafa',
+                border:'1px solid #e0e0e0',borderRadius:12,
+                opacity:0.5,
+                display:'flex',flexDirection:'column',gap:4,
+              }}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.15rem',
+                  letterSpacing:'0.1em',color:'#999'}}>MOCK PERFORMANCE</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                  fontSize:'1rem',color:'#aaa',lineHeight:1.4}}>
+                  Practice performing! — Still in development
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Score — fills entire screen, behind everything */}
+      <div data-score-container style={{position:'absolute',inset:0,display:'flex'}}>
+        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
+          <img data-page={currentPage} src={pageImages[currentPage]}
+            {...(isInterleaved || locateEx ? {
+              onClick: handleLongTap,
+            } : {
+              onTouchStart: handleTouchStart,
+              onTouchMove: handleTouchMove,
+              onTouchEnd: handleTouchEnd,
+              onClick: handleClick,
+            })}
+            style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
+              userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none',
+              cursor: isInterleaved?'crosshair':'default'}}
+            onContextMenu={e=>e.preventDefault()}
+            draggable={false} />
+          {isInterleaved && interleavedSpots.filter(s=>s.page===currentPage).map(spot=>(
+            <SpotBox key={spot.id} spot={spot} mode="placement"
+              onRemove={onRemoveSpot}
+              isSelected={spot.id===selectedSpotId}
+              onSelect={id=>setSelectedSpotId(id)}
+            />
+          ))}
+          {/* SCU tempo indicators */}
+          {!isInterleaved && !locateEx && practiceSpots.filter(s=>s.score_page===currentPage && s.strategies?.scu).map(spot=>{
+            const ox = spot.visual_offset_x||0;
+            const oy = spot.visual_offset_y||0;
+            const best = spot.scu_best||0;
+            const goal = spot.perf_tempo||0;
+            if(!goal) return null;
+            return (
+              <div key={spot.id}
+                onClick={e=>{
+                  e.stopPropagation();
+                  const pos={page:spot.score_page,x:spot.score_x,y:spot.score_y};
+                  onLaunchStrategy('scu', pos);
+                }}
+                onTouchStart={e=>handleDotDragStart(e,spot)}
+                onTouchMove={handleDotDragMove}
+                onTouchEnd={handleDotDragEnd}
+                onMouseDown={e=>{if(e.detail>0)handleDotDragStart(e,spot);}}
+                style={{
+                  position:'absolute',
+                  left:`${(spot.score_x+ox)*100}%`,
+                  top:`${(spot.score_y+oy)*100}%`,
+                  transform:'translate(-50%,-50%)',
+                  cursor:'pointer',zIndex:15,
+                  WebkitTapHighlightColor:'transparent',
+                  touchAction:'none',
+                  background:'rgba(46,170,87,0.92)',border:'1.5px solid white',
+                  borderRadius:6,padding:'2px 6px',
+                  boxShadow:'0 1px 6px rgba(0,0,0,0.35)',
+                }}>
+                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
+                  color:'white',letterSpacing:'0.04em',lineHeight:1.2,whiteSpace:'nowrap'}}>{best}/{goal}</span>
+              </div>
+            );
+          })}
+        </div>
+        {showTwo && rightPage!==null && (
+          <div style={{position:'relative',flex:1,minWidth:0,
+            borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
+            <img data-page={rightPage} src={pageImages[rightPage]}
+              {...(isInterleaved || locateEx ? {
+                onClick: handleLongTap,
+              } : {
+                onTouchStart: handleTouchStart,
+                onTouchMove: handleTouchMove,
+                onTouchEnd: handleTouchEnd,
+                onClick: handleClick,
+              })}
+              style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
+                userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none',cursor:'default'}}
+              onContextMenu={e=>e.preventDefault()}
+              draggable={false} />
+          </div>
+        )}
+      </div>
+
+      {/* Chrome overlay — translucent top bar */}
       <div style={{
         position:'absolute',top:0,left:0,right:0,zIndex:20,
         transform:showChrome?'translateY(0)':'translateY(-100%)',
@@ -1671,8 +1865,12 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
           </div>
           <div style={{display:'flex',gap:4,alignItems:'center',minWidth:80,justifyContent:'flex-end'}}>
             {!locateEx && (<>
-              {modeBtn('massed','BLOCKED')}
-              {modeBtn('interleaved','INTERLEAVED')}
+              <button onClick={()=>setShowSessionPicker(true)} style={{
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+                letterSpacing:'0.08em',padding:'6px 12px',borderRadius:6,
+                background:'#f0f0f0',color:'#666',border:`1px solid #ddd`,
+                cursor:'pointer',WebkitTapHighlightColor:'transparent',
+              }}>{isInterleaved ? 'INTERLEAVED' : 'BLOCKED'} ▾</button>
               {isInterleaved && (
                 <button onClick={onStartSession} disabled={interleavedSpots.length<3} style={{
                   fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
@@ -1686,26 +1884,6 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
               )}
             </>)}
           </div>
-        </div>
-      </div>
-
-      {/* Bottom chrome — page indicator + long-press hint */}
-      <div style={{
-        position:'absolute',bottom:0,left:0,right:0,zIndex:20,
-        transform:showChrome?'translateY(0)':'translateY(100%)',
-        transition:'transform 0.25s ease',
-        background:'rgba(255,255,255,0.92)',
-        backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
-        borderTop:`1px solid rgba(0,0,0,0.1)`,
-        padding:'8px 16px',
-        display:'flex',alignItems:'center',justifyContent:'space-between',
-      }}>
-        <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:'#666'}}>
-          {totalPages>1 ? `Page ${currentPage+1} of ${totalPages}` : ''}
-        </div>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-          fontSize:'0.9rem',color:'#999'}}>
-          {isInterleaved ? 'Tap to place spots' : 'Hold to practice a spot · Swipe to turn pages'}
         </div>
       </div>
 
@@ -1831,101 +2009,6 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
 
         </div>
       )}
-
-      {/* Locate mode banner */}
-      {locateEx && (
-        <div style={{padding:'8px 16px',flexShrink:0,borderBottom:`1px solid ${C.bord}`,
-          background:'rgba(154,112,16,0.18)',display:'flex',alignItems:'center',gap:10,zIndex:25}}>
-          <span style={{fontSize:'1.1rem'}}>📍</span>
-          <div>
-            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
-              letterSpacing:'0.15em',color:C.gold}}>TAP WHERE THIS PASSAGE LIVES</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-              fontSize:'0.85rem',color:C.muted}}>{locateEx.doc_name||'Untitled exercise'}</div>
-          </div>
-        </div>
-      )}
-
-      {/* Score — fills entire screen */}
-      <div data-score-container style={{flex:'1 1 0',minHeight:0,background:'#e8e5e0',display:'flex',position:'relative'}}>
-
-        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
-          <img data-page={currentPage} src={pageImages[currentPage]}
-            {...(isInterleaved || locateEx ? {
-              onClick: handleLongTap,
-            } : {
-              onTouchStart: handleTouchStart,
-              onTouchMove: handleTouchMove,
-              onTouchEnd: handleTouchEnd,
-              onClick: handleClick,
-            })}
-            style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
-              userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none',
-              cursor: isInterleaved?'crosshair':'default'}}
-            onContextMenu={e=>e.preventDefault()}
-            draggable={false} />
-          {isInterleaved && interleavedSpots.filter(s=>s.page===currentPage).map(spot=>(
-            <SpotBox key={spot.id} spot={spot} mode="placement"
-              onRemove={onRemoveSpot}
-              isSelected={spot.id===selectedSpotId}
-              onSelect={id=>setSelectedSpotId(id)}
-            />
-          ))}
-          {/* SCU tempo indicators */}
-          {!isInterleaved && !locateEx && practiceSpots.filter(s=>s.score_page===currentPage && s.strategies?.scu).map(spot=>{
-            const ox = spot.visual_offset_x||0;
-            const oy = spot.visual_offset_y||0;
-            const best = spot.scu_best||0;
-            const goal = spot.perf_tempo||0;
-            if(!goal) return null;
-            return (
-              <div key={spot.id}
-                onClick={e=>{
-                  e.stopPropagation();
-                  const pos={page:spot.score_page,x:spot.score_x,y:spot.score_y};
-                  onLaunchStrategy('scu', pos);
-                }}
-                onTouchStart={e=>handleDotDragStart(e,spot)}
-                onTouchMove={handleDotDragMove}
-                onTouchEnd={handleDotDragEnd}
-                onMouseDown={e=>{if(e.detail>0)handleDotDragStart(e,spot);}}
-                style={{
-                  position:'absolute',
-                  left:`${(spot.score_x+ox)*100}%`,
-                  top:`${(spot.score_y+oy)*100}%`,
-                  transform:'translate(-50%,-50%)',
-                  cursor:'pointer',zIndex:15,
-                  WebkitTapHighlightColor:'transparent',
-                  touchAction:'none',
-                  background:'rgba(46,170,87,0.92)',border:'1.5px solid white',
-                  borderRadius:6,padding:'2px 6px',
-                  boxShadow:'0 1px 6px rgba(0,0,0,0.35)',
-                }}>
-                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
-                  color:'white',letterSpacing:'0.04em',lineHeight:1.2,whiteSpace:'nowrap'}}>{best}/{goal}</span>
-              </div>
-            );
-          })}
-        </div>
-        {showTwo && rightPage!==null && (
-          <div style={{position:'relative',flex:1,minWidth:0,
-            borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
-            <img data-page={rightPage} src={pageImages[rightPage]}
-              {...(isInterleaved || locateEx ? {
-                onClick: handleLongTap,
-              } : {
-                onTouchStart: handleTouchStart,
-                onTouchMove: handleTouchMove,
-                onTouchEnd: handleTouchEnd,
-                onClick: handleClick,
-              })}
-              style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
-                userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none',cursor:'default'}}
-              onContextMenu={e=>e.preventDefault()}
-              draggable={false} />
-          </div>
-        )}
-      </div>
 
     </div>
   );
@@ -4461,16 +4544,12 @@ function SpotLogScreen({ profile, piece, tapPos, onBack, onPracticeAgain }) {
   };
   const stratColor = s => s==='icu'?C.accent:s==='mur'?C.gold:s==='scu'?'#2eaa57':'#999';
 
-  // Group by spot, then by strategy within each spot
-  const bySpot = {};
-  const unlinked = [];
+  // Group: Day → Spot → entries
+  const byDate = {};
   logs.forEach(l => {
-    if(l.spot_id) {
-      if(!bySpot[l.spot_id]) bySpot[l.spot_id]=[];
-      bySpot[l.spot_id].push(l);
-    } else {
-      unlinked.push(l);
-    }
+    const d = l.session_date || 'Unknown';
+    if(!byDate[d]) byDate[d]=[];
+    byDate[d].push(l);
   });
 
   return (
@@ -4483,116 +4562,105 @@ function SpotLogScreen({ profile, piece, tapPos, onBack, onPracticeAgain }) {
             No practice sessions for this piece yet.
           </div>
         )}
-        {!loading && Object.entries(bySpot).map(([sid, spotLogs]) => {
-          const sp = spots.find(s=>s.id===sid);
-          // Group by strategy within this spot
-          const byStrat = {};
-          spotLogs.forEach(l => {
-            const st = l.strategy||'other';
-            if(!byStrat[st]) byStrat[st]=[];
-            byStrat[st].push(l);
+        {!loading && Object.entries(byDate).map(([date, dayLogs]) => {
+          // Group by spot within this day
+          const bySpot = {};
+          const unlinked = [];
+          dayLogs.forEach(l => {
+            if(l.spot_id) {
+              if(!bySpot[l.spot_id]) bySpot[l.spot_id]=[];
+              bySpot[l.spot_id].push(l);
+            } else {
+              unlinked.push(l);
+            }
           });
 
           return (
-            <div key={sid} style={{marginBottom:20,background:'#fff',
-              border:`1px solid ${C.bord}`,borderRadius:10,overflow:'hidden'}}>
-              {/* Spot header */}
-              <div style={{padding:'14px 16px',background:'#fafafa',
-                borderBottom:`1px solid ${C.bord}`}}>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
-                  letterSpacing:'0.1em',color:'#1a1a1a'}}>
-                  {sp?.label || 'Unlabeled spot'}
-                </div>
-                <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',
-                  color:C.muted,marginTop:2}}>
-                  {spotLogs.length} session{spotLogs.length!==1?'s':''}
-                  {sp?.perf_tempo ? ` · goal: ♩ = ${sp.perf_tempo}` : ''}
-                </div>
+            <div key={date} style={{marginBottom:20}}>
+              {/* Date header */}
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
+                letterSpacing:'0.15em',color:'#1a1a1a',padding:'14px 4px 8px',
+                borderBottom:`2px solid ${C.bord}`,display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+                <span>{new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</span>
+                <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',
+                  letterSpacing:0,color:C.muted}}>{relDate(date)}</span>
               </div>
 
-              {/* Strategies */}
-              {Object.entries(byStrat).map(([st, stLogs]) => (
-                <div key={st}>
-                  <div style={{padding:'10px 16px 4px',fontFamily:"'Bebas Neue',sans-serif",
-                    fontSize:'0.85rem',letterSpacing:'0.12em',color:stratColor(st),
-                    display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{width:8,height:8,borderRadius:'50%',background:stratColor(st)}}/>
-                    {stratName(st)}
-                  </div>
-                  {stLogs.map(l => {
-                    const pct = (l.perf_tempo && l.max_tempo)
-                      ? Math.min(100, Math.round((l.max_tempo / l.perf_tempo) * 100))
-                      : null;
-                    return (
-                      <div key={l.id} style={{padding:'10px 16px 10px 34px',
-                        borderBottom:`1px solid #f0f0f0`,
-                        display:'flex',alignItems:'center',gap:10}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.95rem',
-                            color:'#333'}}>
-                            {new Date(l.session_date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
-                            <span style={{color:C.muted,marginLeft:8,fontSize:'0.85rem'}}>{relDate(l.session_date)}</span>
-                          </div>
-                          <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.9rem',
-                            color:'#666',marginTop:3}}>
-                            {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
-                            {l.perf_tempo ? ` (goal: ${l.perf_tempo})` : ''}
-                            {l.reps_clean ? ` · ${l.reps_clean} clean` : ''}
-                            {l.notes ? ` · ${l.notes}` : ''}
-                          </div>
-                        </div>
-                        {pct !== null && (
-                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
-                            color:pct>=100?'#2eaa57':C.accent,flexShrink:0}}>{pct}%</div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {/* Practice Again button */}
-                  {sp && (
-                    <div style={{padding:'8px 16px 12px 34px'}}>
-                      <button onClick={()=>onPracticeAgain({strategy:st, spot:sp, piece})}
-                        style={{padding:'8px 16px',background:stratColor(st),
-                          border:'none',borderRadius:8,color:'white',
-                          fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
-                          letterSpacing:'0.08em',cursor:'pointer',
-                          WebkitTapHighlightColor:'transparent',
-                        }}>PRACTICE {stratName(st).toUpperCase()} AGAIN</button>
+              {/* Spots for this day */}
+              {Object.entries(bySpot).map(([sid, spotLogs]) => {
+                const sp = spots.find(s=>s.id===sid);
+                return (
+                  <div key={sid} style={{marginTop:8,marginLeft:4,borderLeft:`3px solid ${C.bord}`,paddingLeft:12}}>
+                    {/* Spot label */}
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
+                      letterSpacing:'0.08em',color:'#333',padding:'8px 0 4px'}}>
+                      {sp?.label || 'Unlabeled spot'}
+                      {sp?.perf_tempo ? <span style={{color:C.muted,fontWeight:400,fontSize:'0.85rem'}}> · goal ♩ = {sp.perf_tempo}</span> : ''}
                     </div>
-                  )}
+
+                    {/* Sessions at this spot */}
+                    {spotLogs.map(l => {
+                      const pct = (l.perf_tempo && l.max_tempo)
+                        ? Math.min(100, Math.round((l.max_tempo / l.perf_tempo) * 100))
+                        : null;
+                      return (
+                        <div key={l.id} style={{padding:'8px 0',borderBottom:`1px solid #f0f0f0`,
+                          display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{width:10,height:10,borderRadius:'50%',flexShrink:0,
+                            background:stratColor(l.strategy)}}/>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                              letterSpacing:'0.06em',color:'#1a1a1a'}}>
+                              {stratName(l.strategy)}
+                            </div>
+                            <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.9rem',
+                              color:'#666',marginTop:2}}>
+                              {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
+                              {l.perf_tempo ? ` (goal: ${l.perf_tempo})` : ''}
+                              {l.reps_clean ? ` · ${l.reps_clean} clean` : ''}
+                              {l.notes ? ` · ${l.notes}` : ''}
+                            </div>
+                          </div>
+                          {pct !== null && (
+                            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
+                              color:pct>=100?'#2eaa57':C.accent,flexShrink:0}}>{pct}%</div>
+                          )}
+                          {sp && (
+                            <button onClick={()=>onPracticeAgain({strategy:l.strategy, spot:sp, piece})}
+                              style={{padding:'6px 12px',background:stratColor(l.strategy),
+                                border:'none',borderRadius:8,color:'white',
+                                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.7rem',
+                                letterSpacing:'0.06em',cursor:'pointer',flexShrink:0,
+                                WebkitTapHighlightColor:'transparent',
+                              }}>PRACTICE</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+              {/* Unlinked sessions */}
+              {unlinked.map(l => (
+                <div key={l.id} style={{padding:'8px 4px',marginTop:4,borderBottom:`1px solid #f0f0f0`,
+                  display:'flex',alignItems:'center',gap:10}}>
+                  <div style={{width:10,height:10,borderRadius:'50%',flexShrink:0,
+                    background:stratColor(l.strategy)}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',color:'#333'}}>
+                      {stratName(l.strategy)}
+                    </div>
+                    <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:'#666',marginTop:2}}>
+                      {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
+                      {l.notes ? ` · ${l.notes}` : ''}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           );
         })}
-
-        {/* Unlinked sessions */}
-        {unlinked.length > 0 && (
-          <div style={{marginBottom:20,background:'#fff',
-            border:`1px solid ${C.bord}`,borderRadius:10,overflow:'hidden'}}>
-            <div style={{padding:'14px 16px',background:'#fafafa',
-              borderBottom:`1px solid ${C.bord}`}}>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
-                letterSpacing:'0.1em',color:C.muted}}>OTHER SESSIONS</div>
-            </div>
-            {unlinked.map(l => (
-              <div key={l.id} style={{padding:'10px 16px',borderBottom:`1px solid #f0f0f0`,
-                display:'flex',alignItems:'center',gap:10}}>
-                <div style={{width:8,height:8,borderRadius:'50%',flexShrink:0,
-                  background:stratColor(l.strategy)}}/>
-                <div style={{flex:1}}>
-                  <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.95rem',color:'#333'}}>
-                    {stratName(l.strategy)} — {relDate(l.session_date)}
-                  </div>
-                  <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:'#666',marginTop:2}}>
-                    {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
-                    {l.notes ? ` · ${l.notes}` : ''}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
