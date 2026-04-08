@@ -1517,19 +1517,22 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     return ()=>{ document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
   },[draggingSpot, handleDotDragEnd]);
   const isInterleaved = sessionMode === 'interleaved';
-  const [showChrome, setShowChrome] = useState(true);
+  const [showChrome, setShowChrome] = useState(isInterleaved || !!locateEx);
   const longPressRef = useRef(null);
   const touchRef = useRef({startX:0, startY:0, startTime:0, moved:false, longFired:false});
+  const touchHandled = useRef(false); // prevent click after touch
 
   const handleTouchStart = (e) => {
-    if(isInterleaved || locateEx) return; // interleaved/locate use direct tap
+    if(isInterleaved || locateEx) return;
+    e.preventDefault(); // prevent native long-press image save
+    touchHandled.current = true;
     const t = e.touches[0];
     touchRef.current = {startX:t.clientX, startY:t.clientY, startTime:Date.now(), moved:false, longFired:false};
-    // Start long-press timer
     const img = e.currentTarget;
     longPressRef.current = setTimeout(()=>{
       touchRef.current.longFired = true;
-      // Calculate tap position on image
+      // Vibrate feedback if available
+      if(navigator.vibrate) navigator.vibrate(30);
       const rect = img.getBoundingClientRect();
       const x = (touchRef.current.startX - rect.left) / rect.width;
       const y = (touchRef.current.startY - rect.top) / rect.height;
@@ -1552,7 +1555,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   const handleTouchEnd = (e) => {
     if(isInterleaved || locateEx) return;
     clearTimeout(longPressRef.current);
-    if(touchRef.current.longFired) return; // already handled
+    if(touchRef.current.longFired) return;
     const endX = e.changedTouches[0].clientX;
     const dx = endX - touchRef.current.startX;
     const elapsed = Date.now() - touchRef.current.startTime;
@@ -1568,11 +1571,10 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     }
   };
 
-  // Mouse fallback for desktop
+  // Mouse click for desktop only (not iPad)
   const handleClick = (e) => {
     if(isInterleaved || locateEx) return;
-    // On desktop, single click toggles chrome
-    // Right-click or ctrl-click could open action menu, but for now just toggle
+    if(touchHandled.current) { touchHandled.current = false; return; }
     setShowChrome(c=>!c);
   };
 
@@ -1858,7 +1860,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
               onClick: handleClick,
             })}
             style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
-              userSelect:'none',WebkitUserSelect:'none',
+              userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none',
               cursor: isInterleaved?'crosshair':'default'}}
             onContextMenu={e=>e.preventDefault()}
             draggable={false} />
@@ -1918,7 +1920,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
                 onClick: handleClick,
               })}
               style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
-                userSelect:'none',WebkitUserSelect:'none',cursor:'default'}}
+                userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none',cursor:'default'}}
               onContextMenu={e=>e.preventDefault()}
               draggable={false} />
           </div>
@@ -4730,7 +4732,7 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
             onLoad={()=>{setLoaded(true);requestAnimationFrame(()=>draw());}}
             onClick={handleTap}
             style={{width:'100%',height:'95%',objectFit:'contain',display:'block',
-              userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}
+              userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none',WebkitTouchCallout:'none'}}
             onContextMenu={e=>e.preventDefault()}
             draggable={false} />
           <canvas ref={canvasRef} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none'}} />
@@ -4741,7 +4743,7 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
               onLoad={()=>{setLoaded2(true);requestAnimationFrame(()=>draw());}}
               onClick={handleTap2}
               style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
-                userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}
+                userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none',WebkitTouchCallout:'none'}}
               onContextMenu={e=>e.preventDefault()}
               draggable={false} />
             <canvas ref={canvasRef2} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',pointerEvents:'none'}} />
