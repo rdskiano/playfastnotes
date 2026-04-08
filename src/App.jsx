@@ -2327,20 +2327,29 @@ function StrategyOverlay({ piece, profile, tapPos, selectedSpot, onClose, onICU,
       const all = await r.json() || [];
 
       const nb = [], ul = [];
-      // Use tight matching when a specific spot was selected
-      const matchY = selectedSpot ? 0.05 : 0.12;
-      const refY = selectedSpot ? selectedSpot.score_y : (tapPos?.y||0);
-      const refPage = selectedSpot ? selectedSpot.score_page : tapPos?.page;
 
       all.forEach(ex => {
-        const hasLocation = ex.score_page != null || ex.score_y != null;
-        if(!hasLocation) {
-          ul.push(ex);
+        // If a specific spot is selected, match by spot_id first
+        if(selectedSpot) {
+          if(ex.spot_id === selectedSpot.id) { nb.push(ex); return; }
+          // Also check proximity as fallback for exercises without spot_id
+          if(!ex.spot_id && ex.score_page != null && ex.score_y != null) {
+            if(ex.piece_id && piece?.id && String(ex.piece_id) !== String(piece.id)) return;
+            const samePage = parseInt(ex.score_page) === selectedSpot.score_page;
+            const closeY = Math.abs(parseFloat(ex.score_y) - selectedSpot.score_y) < 0.05;
+            if(samePage && closeY) { nb.push(ex); return; }
+          }
+          // Not linked and not close — check if unlocated
+          if(ex.score_page == null && ex.score_y == null && !ex.spot_id) ul.push(ex);
           return;
         }
+
+        // No specific spot — use proximity matching
+        const hasLocation = ex.score_page != null || ex.score_y != null;
+        if(!hasLocation && !ex.spot_id) { ul.push(ex); return; }
         if(ex.piece_id && piece?.id && String(ex.piece_id) !== String(piece.id)) return;
-        const samePage = parseInt(ex.score_page) === refPage;
-        const closeY = Math.abs(parseFloat(ex.score_y) - refY) < matchY;
+        const samePage = parseInt(ex.score_page) === tapPos?.page;
+        const closeY = Math.abs(parseFloat(ex.score_y) - (tapPos?.y||0)) < 0.12;
         if(samePage && closeY) nb.push(ex);
       });
 
@@ -2356,7 +2365,12 @@ function StrategyOverlay({ piece, profile, tapPos, selectedSpot, onClose, onICU,
     setAttaching(ex.id);
     setAttachError(null);
     try {
-      const payload = { piece_id: piece?.id||null, score_page: tapPos?.page??null, score_y: tapPos?.y??null };
+      const payload = {
+        piece_id: piece?.id||null,
+        score_page: selectedSpot?.score_page ?? tapPos?.page ?? null,
+        score_y: selectedSpot?.score_y ?? tapPos?.y ?? null,
+        spot_id: selectedSpot?.id || null,
+      };
       console.log('ATTACH payload:', payload, 'for id:', ex.id);
       const res = await sbPatch(`/rest/v1/exercises?id=eq.${ex.id}`, payload);
       const body = await res.text();
@@ -3149,6 +3163,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
         piece_id:piece?.id||null,
         score_page:tapPos?.page??null,
         score_y:tapPos?.y??null,
+        spot_id:murSpotId||null,
       });
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
       setSaveMsg('Saved!'); setTimeout(()=>setSaveMsg(''),2500);
