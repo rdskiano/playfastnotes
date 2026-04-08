@@ -424,6 +424,38 @@ export default function App() {
             setScreen('score');
           }}
           onSignOut={()=>{setProfile({});setProfileState({});setScreen('signin');}}
+          onPracticeAgain={async ({log, piece:p, spot})=>{
+            if(!p) return;
+            // Load piece images
+            let imgs = [];
+            if(p.file_type==='image') {
+              imgs = [p.file_url];
+            } else {
+              try {
+                const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                if(pdfjsLib) {
+                  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                  const pdf = await pdfjsLib.getDocument(p.file_url).promise;
+                  for(let pg=1;pg<=pdf.numPages;pg++){
+                    const page=await pdf.getPage(pg);
+                    const vp=page.getViewport({scale:2});
+                    const canvas=document.createElement('canvas');
+                    canvas.width=vp.width;canvas.height=vp.height;
+                    await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+                    imgs.push(canvas.toDataURL('image/png'));
+                  }
+                }
+              } catch { imgs = [p.file_url]; }
+            }
+            setPiece(p); setPageImages(imgs); setCurrentPage(0); setMarkers([]);
+            const pos = spot ? {page:spot.score_page, x:spot.score_x, y:spot.score_y} : {page:0,x:0.5,y:0.5};
+            setTapPos(pos);
+            const st = log?.strategy || 'scu';
+            if(st==='icu') { setMarkers([]); setScreen('mark'); }
+            else if(st==='mur') { setSavedExercise(null); setScreen('mur'); }
+            else if(st==='scu') { setScuSpot({page:pos.page,x:pos.x,y:pos.y,piece_id:p.id||null}); setScreen('scu'); }
+            else { setScreen('score'); }
+          }}
         />
       )}
 
@@ -594,6 +626,20 @@ export default function App() {
           piece={piece}
           tapPos={tapPos}
           onBack={()=>setScreen('score')}
+          onPracticeAgain={({strategy, spot, piece:p})=>{
+            const pos = {page:spot.score_page, x:spot.score_x, y:spot.score_y};
+            setTapPos(pos);
+            if(strategy==='icu') {
+              setMarkers([]);
+              setScreen('mark');
+            } else if(strategy==='mur') {
+              setSavedExercise(null);
+              setScreen('mur');
+            } else if(strategy==='scu') {
+              setScuSpot({page:pos.page,x:pos.x,y:pos.y,piece_id:p?.id||piece?.id||null});
+              setScreen('scu');
+            }
+          }}
         />
       )}
 
@@ -664,7 +710,7 @@ function SignInScreen({ onSignIn }) {
 /* ═══════════════════════════════════════════════════════════════════════
    LIBRARY
 ═══════════════════════════════════════════════════════════════════════ */
-function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateExercise, onSignOut, locateResult, onLocateResultClear }) {
+function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateExercise, onPracticeAgain, onSignOut, locateResult, onLocateResultClear }) {
   const [tab,setTab]             = useState('pieces');
   const [pieces,setPieces]       = useState([]);
   const [exercises,setExercises] = useState([]);
@@ -1079,61 +1125,132 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
 
         {tab==='log' && (
           <>
-            {loading && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:C.muted,textAlign:'center',padding:40}}>Loading...</div>}
+            {loading && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'1rem',color:C.muted,textAlign:'center',padding:40}}>Loading...</div>}
             {!loading && logs.length===0 && (
-              <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.1rem'}}>
-                No practice sessions logged yet. Start practicing a spot to build your log!
+              <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.2rem'}}>
+                No practice sessions yet. Start practicing to build your journal!
               </div>
             )}
             {!loading && (() => {
-              // Group logs by session_date
+              const now = Date.now();
+              const relDate = (d) => {
+                if(!d) return '';
+                const diff = Math.floor((now - new Date(d+'T12:00:00').getTime()) / 86400000);
+                if(diff===0) return 'today';
+                if(diff===1) return 'yesterday';
+                if(diff<7) return `${diff} days ago`;
+                if(diff<30) return `${Math.floor(diff/7)} week${Math.floor(diff/7)>1?'s':''} ago`;
+                return `${Math.floor(diff/30)} month${Math.floor(diff/30)>1?'s':''} ago`;
+              };
+              const stratColor = s => s==='icu'?C.accent:s==='mur'?C.gold:s==='scu'?'#2eaa57':'#999';
+
+              // Group: date → piece → spot → entries
               const byDate = {};
               logs.forEach(l => {
                 const d = l.session_date || 'Unknown';
                 if(!byDate[d]) byDate[d]=[];
                 byDate[d].push(l);
               });
-              return Object.entries(byDate).map(([date, dayLogs]) => (
-                <div key={date} style={{marginBottom:12}}>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
-                    letterSpacing:'0.22em',color:C.muted,padding:'10px 4px 5px',
-                    borderBottom:`1px solid ${C.bord}`}}>
-                    {new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}
-                  </div>
-                  {dayLogs.map(l => {
-                    const p = pieces.find(p=>String(p.id)===String(l.piece_id));
-                    const sp = spots.find(s=>s.id===l.spot_id);
-                    const pct = (l.perf_tempo && l.max_tempo)
-                      ? Math.round((l.max_tempo / l.perf_tempo) * 100)
-                      : null;
-                    return (
-                      <div key={l.id} style={{padding:'12px 14px',borderBottom:`1px solid ${C.bord}`,
-                        display:'flex',alignItems:'center',gap:12}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.95rem',
-                            letterSpacing:'0.08em',color:C.cream}}>
-                            {stratName(l.strategy)}
-                            {sp?.label ? ` — ${sp.label}` : ''}
-                            {p && !sp?.label ? ` — ${p.title}` : ''}
+
+              return Object.entries(byDate).map(([date, dayLogs]) => {
+                // Group by piece
+                const byPiece = {};
+                dayLogs.forEach(l => {
+                  const pid = l.piece_id || 'unknown';
+                  if(!byPiece[pid]) byPiece[pid]=[];
+                  byPiece[pid].push(l);
+                });
+
+                return (
+                  <div key={date} style={{marginBottom:20}}>
+                    {/* Date header */}
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                      letterSpacing:'0.18em',color:'#1a1a1a',padding:'14px 4px 6px',
+                      borderBottom:`2px solid ${C.bord}`,display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+                      <span>{new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</span>
+                      <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+                        letterSpacing:0,color:C.muted}}>{relDate(date)}</span>
+                    </div>
+
+                    {Object.entries(byPiece).map(([pid, pieceLogs]) => {
+                      const p = pieces.find(p=>String(p.id)===String(pid));
+
+                      // Group by spot
+                      const bySpot = {};
+                      pieceLogs.forEach(l => {
+                        const sid = l.spot_id || 'none';
+                        if(!bySpot[sid]) bySpot[sid]=[];
+                        bySpot[sid].push(l);
+                      });
+
+                      return (
+                        <div key={pid} style={{marginLeft:8,borderLeft:`3px solid ${C.bord}`,marginTop:8}}>
+                          {/* Piece header */}
+                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
+                            letterSpacing:'0.1em',color:'#333',padding:'10px 12px 4px'}}>
+                            {p?.title || 'Unknown piece'}
+                            {p?.composer ? <span style={{color:C.muted,fontWeight:400}}> — {p.composer}</span> : ''}
                           </div>
-                          <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
-                            color:C.muted,marginTop:3}}>
-                            {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
-                            {l.perf_tempo ? ` (goal: ${l.perf_tempo})` : ''}
-                            {l.reps_clean ? ` · ${l.reps_clean} clean reps` : ''}
-                          </div>
+
+                          {Object.entries(bySpot).map(([sid, spotLogs]) => {
+                            const sp = spots.find(s=>s.id===sid);
+                            return (
+                              <div key={sid} style={{marginLeft:12,marginBottom:4}}>
+                                {/* Spot label */}
+                                {sp?.label && (
+                                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
+                                    fontSize:'1.05rem',color:'#555',padding:'6px 12px 2px'}}>
+                                    {sp.label}
+                                  </div>
+                                )}
+
+                                {spotLogs.map(l => {
+                                  const pct = (l.perf_tempo && l.max_tempo)
+                                    ? Math.min(100, Math.round((l.max_tempo / l.perf_tempo) * 100))
+                                    : null;
+                                  return (
+                                    <div key={l.id} style={{padding:'10px 12px',borderBottom:`1px solid #f0f0f0`,
+                                      display:'flex',alignItems:'center',gap:10}}>
+                                      <div style={{width:10,height:10,borderRadius:'50%',flexShrink:0,
+                                        background:stratColor(l.strategy)}}/>
+                                      <div style={{flex:1,minWidth:0}}>
+                                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                                          letterSpacing:'0.06em',color:'#1a1a1a'}}>
+                                          {stratName(l.strategy)}
+                                        </div>
+                                        <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.9rem',
+                                          color:'#666',marginTop:2}}>
+                                          {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
+                                          {l.perf_tempo ? ` (goal: ${l.perf_tempo})` : ''}
+                                          {l.reps_clean ? ` · ${l.reps_clean} clean` : ''}
+                                          {l.notes ? ` · ${l.notes}` : ''}
+                                        </div>
+                                      </div>
+                                      {pct !== null && (
+                                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
+                                          color:pct>=100?'#2eaa57':C.accent,flexShrink:0}}>{pct}%</div>
+                                      )}
+                                      {l.spot_id && l.strategy && p && (
+                                        <button onClick={()=>onPracticeAgain({log:l, piece:p, spot:sp})}
+                                          style={{padding:'6px 12px',background:'#f5f5f5',
+                                            border:`1px solid ${C.bord}`,borderRadius:8,
+                                            color:'#333',fontFamily:"'Bebas Neue',sans-serif",
+                                            fontSize:'0.75rem',letterSpacing:'0.08em',cursor:'pointer',
+                                            flexShrink:0,WebkitTapHighlightColor:'transparent',
+                                          }}>PRACTICE</button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
                         </div>
-                        {pct !== null && (
-                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
-                            color:pct>=100?'#3db06a':C.accent,flexShrink:0}}>
-                            {Math.min(pct,100)}%
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ));
+                      );
+                    })}
+                  </div>
+                );
+              });
             })()}
           </>
         )}
@@ -4137,7 +4254,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
 /* ═══════════════════════════════════════════════════════════════════════
    SPOT LOG — practice history for a specific spot
 ═══════════════════════════════════════════════════════════════════════ */
-function SpotLogScreen({ profile, piece, tapPos, onBack }) {
+function SpotLogScreen({ profile, piece, tapPos, onBack, onPracticeAgain }) {
   const [logs, setLogs] = useState([]);
   const [spots, setSpots] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4169,65 +4286,138 @@ function SpotLogScreen({ profile, piece, tapPos, onBack }) {
   };
   const stratColor = s => s==='icu'?C.accent:s==='mur'?C.gold:s==='scu'?'#2eaa57':'#999';
 
-  // Group by date
-  const byDate = {};
+  // Group by spot, then by strategy within each spot
+  const bySpot = {};
+  const unlinked = [];
   logs.forEach(l => {
-    const d = l.session_date || 'Unknown';
-    if(!byDate[d]) byDate[d]=[];
-    byDate[d].push(l);
+    if(l.spot_id) {
+      if(!bySpot[l.spot_id]) bySpot[l.spot_id]=[];
+      bySpot[l.spot_id].push(l);
+    } else {
+      unlinked.push(l);
+    }
   });
 
   return (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <TopBar left={<BackBtn onClick={onBack}/>} center={piece?.title ? `JOURNAL — ${piece.title}` : 'PRACTICE JOURNAL'} right={null}/>
       <div style={{flex:'1 1 0',overflowY:'auto',padding:16,WebkitOverflowScrolling:'touch'}}>
-        {loading && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:C.muted,textAlign:'center',padding:40}}>Loading...</div>}
+        {loading && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'1rem',color:C.muted,textAlign:'center',padding:40}}>Loading...</div>}
         {!loading && logs.length===0 && (
-          <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.1rem'}}>
+          <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.2rem'}}>
             No practice sessions for this piece yet.
           </div>
         )}
-        {!loading && Object.entries(byDate).map(([date, dayLogs]) => (
-          <div key={date} style={{marginBottom:12}}>
-            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
-              letterSpacing:'0.22em',color:C.muted,padding:'10px 4px 5px',
-              borderBottom:`1px solid ${C.bord}`,display:'flex',justifyContent:'space-between'}}>
-              <span>{new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}</span>
-              <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.7rem',letterSpacing:0}}>{relDate(date)}</span>
-            </div>
-            {dayLogs.map(l => {
-              const sp = spots.find(s=>s.id===l.spot_id);
-              const pct = (l.perf_tempo && l.max_tempo)
-                ? Math.min(100, Math.round((l.max_tempo / l.perf_tempo) * 100))
-                : null;
-              return (
-                <div key={l.id} style={{padding:'12px 8px',borderBottom:`1px solid ${C.bord}`,
-                  display:'flex',alignItems:'center',gap:10}}>
-                  <div style={{width:10,height:10,borderRadius:'50%',flexShrink:0,
-                    background:stratColor(l.strategy)}}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.88rem',
-                      letterSpacing:'0.08em',color:'#1a1a1a'}}>
-                      {stratName(l.strategy)}
-                      {sp?.label ? <span style={{color:C.muted,fontWeight:400}}> — {sp.label}</span> : ''}
-                    </div>
-                    <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.78rem',
-                      color:C.muted,marginTop:2}}>
-                      {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
-                      {l.perf_tempo ? ` (goal: ${l.perf_tempo})` : ''}
-                      {l.reps_clean ? ` · ${l.reps_clean} clean` : ''}
-                      {l.notes ? ` · ${l.notes}` : ''}
-                    </div>
+        {!loading && Object.entries(bySpot).map(([sid, spotLogs]) => {
+          const sp = spots.find(s=>s.id===sid);
+          // Group by strategy within this spot
+          const byStrat = {};
+          spotLogs.forEach(l => {
+            const st = l.strategy||'other';
+            if(!byStrat[st]) byStrat[st]=[];
+            byStrat[st].push(l);
+          });
+
+          return (
+            <div key={sid} style={{marginBottom:20,background:'#fff',
+              border:`1px solid ${C.bord}`,borderRadius:10,overflow:'hidden'}}>
+              {/* Spot header */}
+              <div style={{padding:'14px 16px',background:'#fafafa',
+                borderBottom:`1px solid ${C.bord}`}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
+                  letterSpacing:'0.1em',color:'#1a1a1a'}}>
+                  {sp?.label || 'Unlabeled spot'}
+                </div>
+                <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',
+                  color:C.muted,marginTop:2}}>
+                  {spotLogs.length} session{spotLogs.length!==1?'s':''}
+                  {sp?.perf_tempo ? ` · goal: ♩ = ${sp.perf_tempo}` : ''}
+                </div>
+              </div>
+
+              {/* Strategies */}
+              {Object.entries(byStrat).map(([st, stLogs]) => (
+                <div key={st}>
+                  <div style={{padding:'10px 16px 4px',fontFamily:"'Bebas Neue',sans-serif",
+                    fontSize:'0.85rem',letterSpacing:'0.12em',color:stratColor(st),
+                    display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:stratColor(st)}}/>
+                    {stratName(st)}
                   </div>
-                  {pct !== null && (
-                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
-                      color:pct>=100?'#2eaa57':C.accent,flexShrink:0}}>{pct}%</div>
+                  {stLogs.map(l => {
+                    const pct = (l.perf_tempo && l.max_tempo)
+                      ? Math.min(100, Math.round((l.max_tempo / l.perf_tempo) * 100))
+                      : null;
+                    return (
+                      <div key={l.id} style={{padding:'10px 16px 10px 34px',
+                        borderBottom:`1px solid #f0f0f0`,
+                        display:'flex',alignItems:'center',gap:10}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.95rem',
+                            color:'#333'}}>
+                            {new Date(l.session_date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
+                            <span style={{color:C.muted,marginLeft:8,fontSize:'0.85rem'}}>{relDate(l.session_date)}</span>
+                          </div>
+                          <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.9rem',
+                            color:'#666',marginTop:3}}>
+                            {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
+                            {l.perf_tempo ? ` (goal: ${l.perf_tempo})` : ''}
+                            {l.reps_clean ? ` · ${l.reps_clean} clean` : ''}
+                            {l.notes ? ` · ${l.notes}` : ''}
+                          </div>
+                        </div>
+                        {pct !== null && (
+                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
+                            color:pct>=100?'#2eaa57':C.accent,flexShrink:0}}>{pct}%</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {/* Practice Again button */}
+                  {sp && (
+                    <div style={{padding:'8px 16px 12px 34px'}}>
+                      <button onClick={()=>onPracticeAgain({strategy:st, spot:sp, piece})}
+                        style={{padding:'8px 16px',background:stratColor(st),
+                          border:'none',borderRadius:8,color:'white',
+                          fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+                          letterSpacing:'0.08em',cursor:'pointer',
+                          WebkitTapHighlightColor:'transparent',
+                        }}>PRACTICE {stratName(st).toUpperCase()} AGAIN</button>
+                    </div>
                   )}
                 </div>
-              );
-            })}
+              ))}
+            </div>
+          );
+        })}
+
+        {/* Unlinked sessions */}
+        {unlinked.length > 0 && (
+          <div style={{marginBottom:20,background:'#fff',
+            border:`1px solid ${C.bord}`,borderRadius:10,overflow:'hidden'}}>
+            <div style={{padding:'14px 16px',background:'#fafafa',
+              borderBottom:`1px solid ${C.bord}`}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
+                letterSpacing:'0.1em',color:C.muted}}>OTHER SESSIONS</div>
+            </div>
+            {unlinked.map(l => (
+              <div key={l.id} style={{padding:'10px 16px',borderBottom:`1px solid #f0f0f0`,
+                display:'flex',alignItems:'center',gap:10}}>
+                <div style={{width:8,height:8,borderRadius:'50%',flexShrink:0,
+                  background:stratColor(l.strategy)}}/>
+                <div style={{flex:1}}>
+                  <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.95rem',color:'#333'}}>
+                    {stratName(l.strategy)} — {relDate(l.session_date)}
+                  </div>
+                  <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.85rem',color:'#666',marginTop:2}}>
+                    {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
+                    {l.notes ? ` · ${l.notes}` : ''}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
