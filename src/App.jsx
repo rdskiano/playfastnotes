@@ -114,13 +114,7 @@ async function findOrCreateSpot(email, pieceId, tapPos) {
     const r = await sbGet(`/rest/v1/practice_spots?user_email=eq.${encodeURIComponent(email)}&piece_id=eq.${pieceId}&score_page=eq.${tapPos.page}&order=created_at.desc`);
     const spots = await r.json()||[];
     const match = spots.find(s => Math.abs(s.score_y - tapPos.y) < 0.15);
-    if(match) {
-      // Update label if a new one was provided
-      if(tapPos.label && tapPos.label !== match.label) {
-        try { await sbPatch(`/rest/v1/practice_spots?id=eq.${match.id}`, { label: tapPos.label }); } catch(e){}
-      }
-      return match.id;
-    }
+    if(match) return match.id;
     // Create new spot
     const cr = await sbPost('/rest/v1/practice_spots', {
       user_email: email,
