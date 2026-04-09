@@ -2443,25 +2443,25 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             <BackBtn onClick={onBack} />
             {!locateEx && !isInterleaved && (<>
               <button onClick={()=>onLaunchStrategy('journal', {page:currentPage, x:0.5, y:0.5})} style={{
-                background:'rgba(0,0,0,0.06)',border:'none',
-                color:'#666',padding:'4px 10px',borderRadius:12,
+                background:'rgba(232,160,50,0.12)',border:'1px solid rgba(232,160,50,0.25)',
+                color:'#c88520',padding:'4px 10px',borderRadius:12,
                 fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
                 letterSpacing:'0.08em',cursor:'pointer',
                 WebkitTapHighlightColor:'transparent',
               }}>📋 JOURNAL</button>
               <button onClick={()=>setShowTimerPicker(true)} style={{
-                background: timerLeft!=null ? 'rgba(52,168,83,0.15)' : 'rgba(0,0,0,0.06)',
-                border: timerLeft!=null ? '1px solid rgba(52,168,83,0.3)' : 'none',
-                color: timerLeft!=null ? '#34a853' : '#666',
+                background: timerLeft!=null ? 'rgba(74,120,255,0.18)' : 'rgba(74,120,255,0.08)',
+                border: `1px solid ${timerLeft!=null ? 'rgba(74,120,255,0.35)' : 'rgba(74,120,255,0.18)'}`,
+                color: timerLeft!=null ? '#3a6fff' : '#6b8fdf',
                 padding:'4px 10px',borderRadius:12,
                 fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
                 letterSpacing:'0.08em',cursor:'pointer',
                 WebkitTapHighlightColor:'transparent',
               }}>⏱ TIMER</button>
               <button onClick={()=>setShowTempoTrackers(t=>!t)} style={{
-                background: showTempoTrackers ? 'rgba(46,170,87,0.15)' : 'rgba(0,0,0,0.06)',
-                border: showTempoTrackers ? '1px solid rgba(46,170,87,0.3)' : 'none',
-                color: showTempoTrackers ? '#2eaa57' : '#666',
+                background: showTempoTrackers ? 'rgba(46,170,87,0.18)' : 'rgba(46,170,87,0.08)',
+                border: `1px solid ${showTempoTrackers ? 'rgba(46,170,87,0.35)' : 'rgba(46,170,87,0.18)'}`,
+                color: showTempoTrackers ? '#2eaa57' : '#5cb878',
                 padding:'4px 10px',borderRadius:12,
                 fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
                 letterSpacing:'0.06em',cursor:'pointer',
