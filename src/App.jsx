@@ -1546,7 +1546,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
   const totalPages = pageImages.length;
   const showTwo = land && totalPages > 1;
   const rightPage = currentPage + 1 < totalPages ? currentPage + 1 : null;
-  const [showSessionPicker, setShowSessionPicker] = useState(!suppressPicker);
+  const [showSessionPicker, setShowSessionPicker] = useState(false);
   // Timer mode
   const [timerTotal, setTimerTotal] = useState(null); // seconds
   const [timerLeft, setTimerLeft] = useState(null);
@@ -2425,15 +2425,26 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             </div>
           </div>
           <div style={{display:'flex',gap:4,alignItems:'center',justifyContent:'flex-end'}}>
-            {!locateEx && (
-              <button onClick={()=>setShowSessionPicker(true)} style={{
-                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
-                letterSpacing:'0.08em',padding:'6px 12px',borderRadius:6,
-                background:'#f0f0f0',color:'#666',border:`1px solid #ddd`,
+            {!locateEx && !isInterleaved && (
+              <button onClick={()=>{
+                setSessionMode('interleaved');
+                setShowIntroModal(true);
+              }} style={{
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
+                letterSpacing:'0.06em',padding:'5px 10px',borderRadius:6,
+                background:'transparent',color:'#4a9eff',border:`1.5px solid #4a9eff`,
                 cursor:'pointer',WebkitTapHighlightColor:'transparent',
-              }}>{isInterleaved ? 'INTERLEAVED' : 'BLOCKED'} ▾</button>
+              }}>TRY INTERLEAVED</button>
             )}
-            {isInterleaved && !locateEx && (
+            {isInterleaved && !locateEx && (<>
+              <button onClick={()=>{
+                setSessionMode('massed');
+              }} style={{
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
+                letterSpacing:'0.06em',padding:'5px 10px',borderRadius:6,
+                background:'transparent',color:'#666',border:`1px solid #ddd`,
+                cursor:'pointer',WebkitTapHighlightColor:'transparent',
+              }}>← BLOCKED</button>
               <button onClick={onStartSession} disabled={interleavedSpots.length<1} style={{
                 fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
                 letterSpacing:'0.1em',padding:'7px 14px',borderRadius:6,
@@ -2443,7 +2454,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
                 cursor:interleavedSpots.length>=1?'pointer':'not-allowed',
                 WebkitTapHighlightColor:'transparent',
               }}>START →</button>
-            )}
+            </>)}
           </div>
         </div>
       </div>
