@@ -1508,61 +1508,57 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
                       return (
                         <div key={pid} style={{marginLeft:8,borderLeft:`3px solid ${C.bord}`,marginTop:8}}>
                           {/* Piece header */}
-                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
-                            letterSpacing:'0.1em',color:'#333',padding:'10px 12px 4px'}}>
+                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+                            letterSpacing:'0.12em',color:'#888',padding:'10px 12px 2px'}}>
                             {p?.title || 'Unknown piece'}
-                            {p?.composer ? <span style={{color:C.muted,fontWeight:400}}> — {p.composer}</span> : ''}
+                            {p?.composer ? <span style={{color:'#bbb',fontWeight:400}}> — {p.composer}</span> : ''}
                           </div>
 
                           {Object.entries(bySpot).map(([sid, spotLogs]) => {
                             const sp = spots.find(s=>s.id===sid);
                             return (
-                              <div key={sid} style={{marginLeft:12,marginBottom:4}}>
-                                {/* Spot label */}
-                                {sp?.label && (
-                                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                                    fontSize:'1.05rem',color:'#555',padding:'6px 12px 2px'}}>
-                                    {sp.label}
-                                  </div>
-                                )}
+                              <div key={sid} style={{marginLeft:12,marginBottom:8}}>
+                                {/* Spot label — prominent */}
+                                <div style={{fontFamily:"'Bebas Neue',sans-serif",
+                                  fontSize:'1.05rem',letterSpacing:'0.08em',color:'#1a1a1a',
+                                  padding:'8px 12px 4px'}}>
+                                  {sp?.label || 'General practice'}
+                                </div>
 
                                 {spotLogs.map(l => {
                                   const pct = (l.perf_tempo && l.max_tempo)
                                     ? Math.min(100, Math.round((l.max_tempo / l.perf_tempo) * 100))
                                     : null;
                                   return (
-                                    <div key={l.id} style={{padding:'10px 12px',borderBottom:`1px solid #f0f0f0`,
-                                      display:'flex',alignItems:'center',gap:10}}>
-                                      <div style={{width:10,height:10,borderRadius:'50%',flexShrink:0,
-                                        background:stratColor(l.strategy)}}/>
+                                    <div key={l.id} style={{padding:'6px 12px',borderBottom:`1px solid #f0f0f0`,
+                                      display:'flex',alignItems:'flex-start',gap:10}}>
+                                      <div style={{width:8,height:8,borderRadius:'50%',flexShrink:0,
+                                        background:stratColor(l.strategy),marginTop:5}}/>
                                       <div style={{flex:1,minWidth:0}}>
-                                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
-                                          letterSpacing:'0.06em',color:'#1a1a1a'}}>
+                                        <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+                                          color:'#999',letterSpacing:'0.02em'}}>
                                           {stratName(l.strategy)}
-                                        </div>
-                                        <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.9rem',
-                                          color:'#666',marginTop:2}}>
-                                          {l.start_tempo && l.max_tempo ? `♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
+                                          {l.start_tempo && l.max_tempo ? ` · ♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
                                           {l.perf_tempo ? ` (goal: ${l.perf_tempo})` : ''}
                                           {l.reps_clean ? ` · ${l.reps_clean} clean` : ''}
                                         </div>
                                         {l.notes && (
                                           <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                                            fontSize:'0.95rem',color:'#888',marginTop:3,lineHeight:1.4}}>
+                                            fontSize:'0.95rem',color:'#555',marginTop:3,lineHeight:1.4}}>
                                             {l.notes}
                                           </div>
                                         )}
                                       </div>
                                       {pct !== null && (
-                                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.3rem',
+                                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
                                           color:pct>=100?'#2eaa57':C.accent,flexShrink:0}}>{pct}%</div>
                                       )}
                                       {l.spot_id && l.strategy && p && (
                                         <button onClick={()=>onPracticeAgain({log:l, piece:p, spot:sp})}
-                                          style={{padding:'6px 12px',background:'#f5f5f5',
+                                          style={{padding:'5px 10px',background:'#f5f5f5',
                                             border:`1px solid ${C.bord}`,borderRadius:8,
                                             color:'#333',fontFamily:"'Bebas Neue',sans-serif",
-                                            fontSize:'0.75rem',letterSpacing:'0.08em',cursor:'pointer',
+                                            fontSize:'0.7rem',letterSpacing:'0.06em',cursor:'pointer',
                                             flexShrink:0,WebkitTapHighlightColor:'transparent',
                                           }}>PRACTICE</button>
                                       )}
