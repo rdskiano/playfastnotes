@@ -1520,11 +1520,11 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
                 return (
                   <div key={date} style={{marginBottom:20}}>
                     {/* Date header */}
-                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
                       letterSpacing:'0.18em',color:'#1a1a1a',padding:'14px 4px 6px',
                       borderBottom:`2px solid ${C.bord}`,display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
                       <span>{new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</span>
-                      <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+                      <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.95rem',
                         letterSpacing:0,color:C.muted}}>{relDate(date)}</span>
                     </div>
 
@@ -1542,7 +1542,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
                       return (
                         <div key={pid} style={{marginLeft:8,borderLeft:`3px solid ${C.bord}`,marginTop:8}}>
                           {/* Piece header */}
-                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
+                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
                             letterSpacing:'0.1em',color:'#333',padding:'10px 12px 2px'}}>
                             {p?.title || 'Unknown piece'}
                             {p?.composer ? <span style={{color:'#aaa',fontWeight:400}}> — {p.composer}</span> : ''}
@@ -1555,7 +1555,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
                                 {/* Spot label */}
                                 {sp?.label && (
                                   <div style={{fontFamily:"'Bebas Neue',sans-serif",
-                                    fontSize:'0.9rem',letterSpacing:'0.06em',color:'#555',
+                                    fontSize:'1.05rem',letterSpacing:'0.06em',color:'#555',
                                     padding:'6px 12px 2px'}}>
                                     {sp.label}
                                   </div>
@@ -1572,7 +1572,7 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
                                       <div style={{width:8,height:8,borderRadius:'50%',flexShrink:0,
                                         background:stratColor(l.strategy),marginTop:5}}/>
                                       <div style={{flex:1,minWidth:0}}>
-                                        <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.8rem',
+                                        <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.95rem',
                                           color:'#999',letterSpacing:'0.02em'}}>
                                           {stratName(l.strategy)}
                                           {l.start_tempo && l.max_tempo ? ` · ♩ ${l.start_tempo} → ${l.max_tempo}` : ''}
@@ -1613,25 +1613,25 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
                                         ) : (
                                           l.notes && (
                                             <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-                                              fontSize:'0.95rem',color:'#555',marginTop:3,lineHeight:1.4}}>
+                                              fontSize:'1.05rem',color:'#555',marginTop:3,lineHeight:1.4}}>
                                               {l.notes}
                                             </div>
                                           )
                                         )}
                                       </div>
                                       {pct !== null && l.strategy === 'scu' && (
-                                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.1rem',
+                                        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.4rem',
                                           color:'#2eaa57',flexShrink:0}}>{pct}%</div>
                                       )}
                                       {!isEditing && (
                                         <div style={{display:'flex',gap:2,flexShrink:0,marginTop:2}}>
                                           <button onClick={()=>setEditingLog({id:l.id, notes:l.notes||''})} style={{
                                             background:'none',border:'none',color:'#bbb',cursor:'pointer',
-                                            fontSize:'0.85rem',padding:'2px 4px',WebkitTapHighlightColor:'transparent',
+                                            fontSize:'1.3rem',padding:'4px 8px',WebkitTapHighlightColor:'transparent',
                                           }}>✎</button>
                                           <button onClick={()=>setDeletingLog(l.id)} style={{
                                             background:'none',border:'none',color:'#dbb',cursor:'pointer',
-                                            fontSize:'0.85rem',padding:'2px 4px',WebkitTapHighlightColor:'transparent',
+                                            fontSize:'1.3rem',padding:'4px 8px',WebkitTapHighlightColor:'transparent',
                                           }}>✕</button>
                                         </div>
                                       )}
