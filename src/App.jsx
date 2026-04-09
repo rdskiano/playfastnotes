@@ -107,6 +107,7 @@ const STRAT_NAME = {
   unguided: 'Unguided',
 };
 const stratName = s => STRAT_NAME[s] || s || 'Practice';
+const localDate = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
 // Find or create a practice_spots record near a tap position
 async function findOrCreateSpot(email, pieceId, tapPos) {
@@ -564,7 +565,7 @@ export default function App() {
                         spot_id: null,
                         strategy: strategyNote.strategy,
                         notes: noteText.trim(),
-                        session_date: new Date().toISOString().split('T')[0],
+                        session_date: localDate(),
                       });
                     }
                   } catch(e){}
@@ -863,7 +864,7 @@ export default function App() {
                     spot_id: sid,
                     piece_id: piece?.id||null,
                     strategy: 'unguided',
-                    session_date: new Date().toISOString().split('T')[0],
+                    session_date: localDate(),
                   });
                 } catch(e){}
               }
@@ -1508,22 +1509,24 @@ function LibraryScreen({ profile, onSelectRepertoire, onLoadExercise, onLocateEx
                       return (
                         <div key={pid} style={{marginLeft:8,borderLeft:`3px solid ${C.bord}`,marginTop:8}}>
                           {/* Piece header */}
-                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
-                            letterSpacing:'0.12em',color:'#888',padding:'10px 12px 2px'}}>
+                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.05rem',
+                            letterSpacing:'0.1em',color:'#333',padding:'10px 12px 2px'}}>
                             {p?.title || 'Unknown piece'}
-                            {p?.composer ? <span style={{color:'#bbb',fontWeight:400}}> — {p.composer}</span> : ''}
+                            {p?.composer ? <span style={{color:'#aaa',fontWeight:400}}> — {p.composer}</span> : ''}
                           </div>
 
                           {Object.entries(bySpot).map(([sid, spotLogs]) => {
                             const sp = spots.find(s=>s.id===sid);
                             return (
                               <div key={sid} style={{marginLeft:12,marginBottom:8}}>
-                                {/* Spot label — prominent */}
-                                <div style={{fontFamily:"'Bebas Neue',sans-serif",
-                                  fontSize:'1.05rem',letterSpacing:'0.08em',color:'#1a1a1a',
-                                  padding:'8px 12px 4px'}}>
-                                  {sp?.label || 'General practice'}
-                                </div>
+                                {/* Spot label */}
+                                {sp?.label && (
+                                  <div style={{fontFamily:"'Bebas Neue',sans-serif",
+                                    fontSize:'0.9rem',letterSpacing:'0.06em',color:'#555',
+                                    padding:'6px 12px 2px'}}>
+                                    {sp.label}
+                                  </div>
+                                )}
 
                                 {spotLogs.map(l => {
                                   const pct = (l.perf_tempo && l.max_tempo)
@@ -3917,7 +3920,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
           piece_id: piece?.id||null,
           strategy: 'mur',
           notes: `grouping: ${sec}, ${selNotes.length} notes`,
-          session_date: new Date().toISOString().split('T')[0],
+          session_date: localDate(),
         });
       }
     } catch(e){}
@@ -4217,6 +4220,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
           user_email: prof.email,
           spot_id: murSpotId,
           piece_id: piece?.id||null,
+          session_date: localDate(),
           strategy: 'mur',
           notes: `grouping: ${g2s(activeGroup)}, ${selNotes.length} notes, ${docName||'untitled'}`,
         }).catch(()=>{});
@@ -4826,6 +4830,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
           spot_id: spotId||null,
           piece_id: scuSpot?.piece_id||null,
           strategy: 'scu',
+          session_date: localDate(),
           start_tempo: startBpm,
           max_tempo: maxTempo,
           perf_tempo: perfTempo,
@@ -5558,6 +5563,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
           spot_id: sid,
           piece_id: piece?.id||null,
           strategy: 'icu',
+          session_date: localDate(),
           start_tempo: startTempo,
           max_tempo: step.tempo,
           perf_tempo: goalTempo,
@@ -5578,6 +5584,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
           spot_id: null,
           piece_id: piece?.id||null,
           strategy: 'icu',
+          session_date: localDate(),
           start_tempo: startTempo,
           max_tempo: step.tempo,
           perf_tempo: goalTempo,
