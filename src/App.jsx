@@ -196,42 +196,69 @@ function generateSteps(N, start, goal, inc) {
    METRONOME
 ═══════════════════════════════════════════════════════════════════════ */
 class Metro {
-  constructor(){this.ctx=null;this.id=null;this.bpm=80;this.next=0;}
+  constructor(){this.ctx=null;this.id=null;this.bpm=80;this.next=0;this.subdiv=1;this.subCount=0;}
   _ensureCtx(){
-    // Create fresh context if none exists or if closed (e.g. after backgrounding)
     if(!this.ctx||this.ctx.state==='closed'){
       this.ctx=new(window.AudioContext||window.webkitAudioContext)();
     }
-    // Always resume in case iOS suspended it
     if(this.ctx.state==='suspended') this.ctx.resume();
   }
-  _click(t){
+  _click(t, isBeat){
     try {
       const o=this.ctx.createOscillator(),g=this.ctx.createGain();
-      o.connect(g);g.connect(this.ctx.destination);o.frequency.value=1100;
+      o.connect(g);g.connect(this.ctx.destination);
+      o.frequency.value = isBeat ? 1100 : 700;
+      const vol = isBeat ? 0.7 : 0.35;
       g.gain.setValueAtTime(0,t);
-      g.gain.linearRampToValueAtTime(0.7,t+0.003);
+      g.gain.linearRampToValueAtTime(vol,t+0.003);
       g.gain.exponentialRampToValueAtTime(0.001,t+0.06);
       o.start(t);o.stop(t+0.07);
     } catch(e){}
   }
   _sched(){
-    // Larger lookahead (0.25s) so late timer fires don't drop clicks
-    while(this.next<this.ctx.currentTime+0.25){this._click(this.next);this.next+=60/this.bpm;}
+    const subInterval = 60 / this.bpm / this.subdiv;
+    while(this.next<this.ctx.currentTime+0.25){
+      const isBeat = this.subCount % this.subdiv === 0;
+      this._click(this.next, isBeat);
+      this.next += subInterval;
+      this.subCount++;
+    }
     this.id=setTimeout(()=>this._sched(),80);
   }
   start(bpm){
-    this.stop();this.bpm=bpm;
+    this.stop();this.bpm=bpm;this.subCount=0;
     this._ensureCtx();
     this.next=this.ctx.currentTime+0.05;this._sched();
   }
+  setSubdiv(s){ this.subdiv=s; }
   setBpm(bpm){
     this.bpm=bpm;
-    // Also resume context in case it was suspended while running
     if(this.ctx&&this.ctx.state==='suspended') this.ctx.resume();
   }
   stop(){if(this.id){clearTimeout(this.id);this.id=null;}}
 }
+
+const SubdivBtns = ({subdiv, setSubdiv, metro, metroOn, bpm, compact}) => (
+  <div style={{display:'flex',gap:2}}>
+    {[{v:1,label:'♩'},{v:2,label:'♪♪'},{v:3,label:'♪³'}].map(({v,label})=>(
+      <button key={v} onClick={()=>{
+        setSubdiv(v);
+        metro.current.setSubdiv(v);
+        if(metroOn) metro.current.start(bpm);
+      }} style={{
+        background: subdiv===v ? '#555' : '#f0f0f0',
+        color: subdiv===v ? '#fff' : '#999',
+        border: `1px solid ${subdiv===v ? '#555' : '#ddd'}`,
+        padding: compact ? '3px 6px' : '4px 8px',
+        fontFamily:"'Bebas Neue',sans-serif",
+        fontSize: compact ? '0.65rem' : '0.75rem',
+        cursor:'pointer',borderRadius:4,
+        WebkitTapHighlightColor:'transparent',
+        lineHeight:1,
+      }}>{label}</button>
+    ))}
+  </div>
+);
 
 /* ═══════════════════════════════════════════════════════════════════════
    MUR — PITCH / ABC HELPERS
@@ -2603,6 +2630,7 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, rotationMod
   const metro             = useRef(new Metro());
   const [metroOn,  setMetroOn]  = useState(false);
   const [metroBpm, setMetroBpm] = useState(80);
+  const [subdiv, setSubdiv] = useState(1);
   useEffect(()=>{ currentSpotIdRef.current = currentSpotId; },[currentSpotId]);
   useEffect(()=>{ currentPageRef.current   = currentPage;   },[currentPage]);
   // When spot changes: if it has a locked BPM, auto-load it; otherwise keep current
@@ -2819,6 +2847,7 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, rotationMod
               fontSize:'1rem',display:'flex',alignItems:'center',justifyContent:'center',
               flexShrink:0,WebkitTapHighlightColor:'transparent',
             }}>{metroOn?'⏸':'▶'}</button>
+            <SubdivBtns subdiv={subdiv} setSubdiv={setSubdiv} metro={metro} metroOn={metroOn} bpm={metroBpm} compact />
             <button onClick={()=>{
               if(!currentSpotId) return;
               setSpots(prev=>prev.map(s=>s.id===currentSpotId?{...s,bpm:metroBpm}:s));
@@ -4615,6 +4644,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
   const [showTempos, setShowTempos] = useState(false);
   const [allSpots, setAllSpots]     = useState([]); // all spots for this piece
   const metro = useRef(new Metro());
+  const [scuSubdiv, setScuSubdiv] = useState(1);
   const bpmTimerRef    = useRef(null);
   const bpmIntervalRef = useRef(null);
   const land = useOrientation();
@@ -4867,6 +4897,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
               display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
               WebkitTapHighlightColor:'transparent',
             }}>{metroOn?'⏸':'▶'}</button>
+            <SubdivBtns subdiv={scuSubdiv} setSubdiv={setScuSubdiv} metro={metro} metroOn={metroOn} bpm={bpm} compact />
           </div>
 
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
@@ -5425,6 +5456,7 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   const [metroOn,setMetroOn] = useState(false);
   const [currentPage,setCurrentPage] = useState(()=>markers[0]?.page||0);
   const metro   = useRef(new Metro());
+  const [icuSubdiv, setIcuSubdiv] = useState(1);
   const imgRef  = useRef();
   const canvasRef = useRef();
   const imgRef2S   = useRef();
@@ -5592,6 +5624,8 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
           <button onClick={()=>setMetroOn(m=>!m)} style={{background:metroOn?C.accent:'#f0f0f0',border:`2px solid ${metroOn?C.accent:'#ccc'}`,color:metroOn?'white':'#333',width:compact?36:44,height:compact?36:44,cursor:'pointer',fontSize:compact?'1rem':'1.2rem',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
             {metroOn?'⏸':'▶'}
           </button>
+
+          <SubdivBtns subdiv={icuSubdiv} setSubdiv={setIcuSubdiv} metro={metro} metroOn={metroOn} bpm={step.tempo} compact={compact} />
 
           {/* Single NEXT button */}
           <button onClick={()=>{
