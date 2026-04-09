@@ -115,7 +115,7 @@ async function findOrCreateSpot(email, pieceId, tapPos) {
   try {
     const r = await sbGet(`/rest/v1/practice_spots?user_email=eq.${encodeURIComponent(email)}&piece_id=eq.${pieceId}&score_page=eq.${tapPos.page}&order=created_at.desc`);
     const spots = await r.json()||[];
-    const match = spots.find(s => Math.abs(s.score_y - tapPos.y) < 0.06 && Math.abs(s.score_x - tapPos.x) < 0.06);
+    const match = spots.find(s => Math.abs(s.score_y - tapPos.y) < 0.06 && (s.score_x == null || Math.abs(s.score_x - tapPos.x) < 0.06));
     if(match) {
       // Update label if a new one was provided
       if(tapPos.label && tapPos.label !== match.label) {
@@ -660,7 +660,7 @@ export default function App() {
                   try {
                     const r = await sbGet(`/rest/v1/practice_spots?user_email=eq.${encodeURIComponent(prof.email)}&piece_id=eq.${piece.id}&score_page=eq.${pos.page}`);
                     const allSpots = await r.json()||[];
-                    nearby = allSpots.filter(s => Math.abs(s.score_y - pos.y) < 0.10 && Math.abs(s.score_x - pos.x) < 0.10);
+                    nearby = allSpots.filter(s => Math.abs(s.score_y - pos.y) < 0.10 && (s.score_x == null || Math.abs(s.score_x - pos.x) < 0.10));
                   } catch(e) {}
                 }
                 const closest = nearby.length > 0 ? nearby.reduce((a,b) => Math.abs(a.score_y - pos.y) < Math.abs(b.score_y - pos.y) ? a : b) : null;
@@ -680,7 +680,7 @@ export default function App() {
                 try {
                   const r = await sbGet(`/rest/v1/practice_spots?user_email=eq.${encodeURIComponent(prof.email)}&piece_id=eq.${piece.id}&score_page=eq.${pos.page}`);
                   const allSpots = await r.json()||[];
-                  nearby = allSpots.filter(s => Math.abs(s.score_y - pos.y) < 0.10 && Math.abs(s.score_x - pos.x) < 0.10);
+                  nearby = allSpots.filter(s => Math.abs(s.score_y - pos.y) < 0.10 && (s.score_x == null || Math.abs(s.score_x - pos.x) < 0.10));
                 } catch(e) { console.error('spot check failed', e); }
               }
               // Always show spot setup popover
@@ -4738,7 +4738,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
         // Look for existing spot near this tap
         const r = await sbGet(`/rest/v1/practice_spots?user_email=eq.${encodeURIComponent(profile.email)}&piece_id=eq.${scuSpot.piece_id}&score_page=eq.${scuSpot.page}&order=created_at.desc`);
         const spots = await r.json()||[];
-        const match = spots.find(s=> Math.abs(s.score_y - scuSpot.y) < 0.06 && Math.abs(s.score_x - scuSpot.x) < 0.06);
+        const match = spots.find(s=> Math.abs(s.score_y - scuSpot.y) < 0.06 && (s.score_x == null || Math.abs(s.score_x - scuSpot.x) < 0.06));
         if(match) {
           setSpotId(match.id);
           if(match.label) setSpotLabel(match.label);
