@@ -4771,13 +4771,11 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
   const [showComplete, setShowComplete] = useState(false);
   const [spotId, setSpotId]         = useState(null);
   const [startBpm, setStartBpm]     = useState(60);
-  const [spotLabel, setSpotLabel]   = useState('');
+  const [spotLabel, setSpotLabel]   = useState(tapPos?.label || '');
   const [showTempos, setShowTempos] = useState(false);
   const [allSpots, setAllSpots]     = useState([]); // all spots for this piece
   const metro = useRef(new Metro());
   const [scuSubdiv, setScuSubdiv] = useState(1);
-  const bpmTimerRef    = useRef(null);
-  const bpmIntervalRef = useRef(null);
   const land = useOrientation();
   const [currentPage, setCurrentPage] = useState(tapPos?.page||0);
 
@@ -4903,21 +4901,14 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
   const adjustBpm = delta => setBpm(b=>Math.max(20,Math.min(300,b+delta)));
   const adjustPerf = delta => setPerfTempo(b=>Math.max(20,Math.min(400,b+delta)));
 
-  const makePress = (fn) => ({
-    onMouseDown:()=>{fn();bpmTimerRef.current=setTimeout(()=>{bpmIntervalRef.current=setInterval(fn,80);},500);},
-    onMouseUp:()=>{clearTimeout(bpmTimerRef.current);clearInterval(bpmIntervalRef.current);},
-    onMouseLeave:()=>{clearTimeout(bpmTimerRef.current);clearInterval(bpmIntervalRef.current);},
-    onTouchStart:e=>{e.preventDefault();fn();bpmTimerRef.current=setTimeout(()=>{bpmIntervalRef.current=setInterval(fn,80);},500);},
-    onTouchEnd:()=>{clearTimeout(bpmTimerRef.current);clearInterval(bpmIntervalRef.current);},
-  });
-
-  const bpmBtn = {
+  const bpmBtn = (size) => ({
     background:'#f0f0f0',border:`1px solid ${C.bord2}`,color:C.cream,
-    width:40,height:40,cursor:'pointer',userSelect:'none',flexShrink:0,
-    fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
+    width: size==='big' ? 44 : 34, height: size==='big' ? 44 : 34,
+    cursor:'pointer',userSelect:'none',flexShrink:0,
+    fontFamily:"'Bebas Neue',sans-serif",fontSize: size==='big' ? '1.2rem' : '0.85rem',
     display:'flex',alignItems:'center',justifyContent:'center',
-    WebkitTapHighlightColor:'transparent',
-  };
+    WebkitTapHighlightColor:'transparent',borderRadius:6,
+  });
 
   if(phase === 'setup') {
     return (
@@ -4934,32 +4925,27 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
           <div style={{display:'flex',flexDirection:'column',gap:20}}>
             <div>
               <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
-                letterSpacing:'0.2em',color:C.muted,marginBottom:8}}>SPOT NAME</div>
-              <input type="text" value={spotLabel} onChange={e=>setSpotLabel(e.target.value)}
-                placeholder="e.g. m.32 run, coda, opening"
-                style={{width:'100%',background:'#fff',border:`1px solid ${C.bord}`,color:C.cream,
-                  padding:'10px 12px',fontFamily:"'Inconsolata',monospace",fontSize:'0.95rem'}}/>
-            </div>
-
-            <div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
                 letterSpacing:'0.2em',color:'#3db06a',marginBottom:8}}>STARTING TEMPO</div>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <button style={bpmBtn} {...makePress(()=>adjustBpm(-1))}>−</button>
+              <div style={{display:'flex',alignItems:'center',gap:6,justifyContent:'center'}}>
+                <button style={bpmBtn('small')} onClick={()=>adjustBpm(-10)}>−10</button>
+                <button style={bpmBtn('big')} onClick={()=>adjustBpm(-1)}>−</button>
                 <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.2rem',
                   color:C.cream,minWidth:90,textAlign:'center'}}>♩ = {bpm}</div>
-                <button style={bpmBtn} {...makePress(()=>adjustBpm(1))}>+</button>
+                <button style={bpmBtn('big')} onClick={()=>adjustBpm(1)}>+</button>
+                <button style={bpmBtn('small')} onClick={()=>adjustBpm(10)}>+10</button>
               </div>
             </div>
 
             <div>
               <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
                 letterSpacing:'0.2em',color:C.accent,marginBottom:8}}>PERFORMANCE TEMPO</div>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <button style={bpmBtn} {...makePress(()=>adjustPerf(-1))}>−</button>
+              <div style={{display:'flex',alignItems:'center',gap:6,justifyContent:'center'}}>
+                <button style={bpmBtn('small')} onClick={()=>adjustPerf(-10)}>−10</button>
+                <button style={bpmBtn('big')} onClick={()=>adjustPerf(-1)}>−</button>
                 <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'2.2rem',
                   color:C.cream,minWidth:90,textAlign:'center'}}>♩ = {perfTempo}</div>
-                <button style={bpmBtn} {...makePress(()=>adjustPerf(1))}>+</button>
+                <button style={bpmBtn('big')} onClick={()=>adjustPerf(1)}>+</button>
+                <button style={bpmBtn('small')} onClick={()=>adjustPerf(10)}>+10</button>
               </div>
             </div>
 
