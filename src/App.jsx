@@ -4768,6 +4768,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
   const [cleanReps, setCleanReps]   = useState(0);
   const [sessionStart]              = useState(Date.now);
   const [incSize, setIncSize]       = useState(5);
+  const [targetReps, setTargetReps] = useState(10);
   const [showComplete, setShowComplete] = useState(false);
   const [spotId, setSpotId]         = useState(null);
   const [startBpm, setStartBpm]     = useState(60);
@@ -4855,7 +4856,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
       setCleanReps(c=>c+1);
       const newStreak = streak + 1;
       setStreak(newStreak);
-      if(newStreak >= 10) {
+      if(newStreak >= targetReps) {
         // Completed! Show increment picker
         if(bpm > maxTempo) setMaxTempo(bpm);
         setShowComplete(true);
@@ -4951,18 +4952,18 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
 
             <div>
               <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
-                letterSpacing:'0.2em',color:C.muted,marginBottom:8}}>INCREMENT</div>
+                letterSpacing:'0.2em',color:C.muted,marginBottom:8}}>CLEAN REPS TO ADVANCE</div>
               <div style={{display:'flex',gap:8}}>
-                {[2,5,10].map(n=>(
-                  <button key={n} onClick={()=>setIncSize(n)} style={{
+                {[5,10,15,20].map(n=>(
+                  <button key={n} onClick={()=>setTargetReps(n)} style={{
                     flex:1,padding:'10px 0',
-                    background:incSize===n?'#3db06a':'#f0f0f0',
-                    border:`1px solid ${incSize===n?'#3db06a':C.bord2}`,
-                    color:incSize===n?'white':C.cream,
+                    background:targetReps===n?'#3db06a':'#f0f0f0',
+                    border:`1px solid ${targetReps===n?'#3db06a':C.bord2}`,
+                    color:targetReps===n?'white':C.cream,
                     fontFamily:"'Bebas Neue',sans-serif",fontSize:'1rem',
                     letterSpacing:'0.1em',cursor:'pointer',
                     WebkitTapHighlightColor:'transparent',
-                  }}>+{n}</button>
+                  }}>{n}</button>
                 ))}
               </div>
             </div>
@@ -4983,9 +4984,10 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
   const totalPages = pageImages.length;
   const showTwo = land && totalPages > 1;
 
-  const streakDots = range(0,10).map(i=>(
+  const dotSize = targetReps > 10 ? 10 : 14;
+  const streakDots = range(0,targetReps).map(i=>(
     <div key={i} style={{
-      width:14,height:14,borderRadius:'50%',
+      width:dotSize,height:dotSize,borderRadius:'50%',
       background:i<streak?'#3db06a':'#f0f0f0',
       border:`2px solid ${i<streak?'#3db06a':'#444'}`,
       transition:'background 0.15s,border-color 0.15s',
@@ -5030,7 +5032,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
           <div style={{display:'flex',gap:4}}>{streakDots}</div>
           <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
             letterSpacing:'0.1em',color:'#3db06a',minWidth:40,textAlign:'center'}}>
-            {streak}/10
+            {streak}/{targetReps}
           </span>
           {!showComplete && (
             <>
@@ -5169,7 +5171,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
             boxShadow:'0 8px 40px rgba(0,0,0,0.15)'}}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
               letterSpacing:'0.12em',color:'#3db06a'}}>
-              10 CLEAN REPS! 🎉
+              {targetReps} CLEAN REPS! 🎉
             </div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
               fontSize:'1rem',color:C.cream}}>
