@@ -902,7 +902,8 @@ export default function App() {
           piece={piece} pageImages={pageImages}
           profile={profile} savedExercise={savedExercise}
           tapPos={tapPos}
-          onBack={()=>{setShowOverlay(false); setStrategyNote({strategy:'mur'}); setNoteText(''); setScreen(piece?'score':'library');}}
+          onBack={()=>{setShowOverlay(false); setScreen(piece?'score':'library');}}
+          onDone={()=>{setShowOverlay(false); setStrategyNote({strategy:'mur'}); setNoteText(''); setScreen(piece?'score':'library');}}
         />
       )}
 
@@ -912,7 +913,8 @@ export default function App() {
           spots={interleavedSpots}
           rotationMode={interleavedMode}
           rotationValue={interleavedValue}
-          onBack={()=>{ setStrategyNote({strategy:'interleaved'}); setNoteText(''); setInterleavedSpots([]); setSessionMode('massed'); setScreen('score'); }}
+          onBack={()=>{ setInterleavedSpots([]); setSessionMode('massed'); setScreen('score'); }}
+          onDone={()=>{ setStrategyNote({strategy:'interleaved'}); setNoteText(''); setInterleavedSpots([]); setSessionMode('massed'); setScreen('score'); }}
         />
       )}
 
@@ -2410,6 +2412,23 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
 
       {/* Score page content */}
       <div data-score-container style={{position:'absolute',inset:0,display:'flex'}}>
+        {/* Floating page arrows */}
+        {totalPages>1 && currentPage>0 && (
+          <button onClick={()=>setCurrentPage(p=>showTwo?Math.max(0,p-2):p-1)} style={{
+            position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
+            background:'rgba(255,255,255,0.85)',border:'none',color:'#333',fontSize:'1.8rem',
+            padding:'16px 10px',cursor:'pointer',borderRadius:'0 4px 4px 0',
+            WebkitTapHighlightColor:'transparent',
+          }}>‹</button>
+        )}
+        {totalPages>1 && currentPage<totalPages-1 && !(showTwo && currentPage+2>=totalPages) && (
+          <button onClick={()=>setCurrentPage(p=>showTwo?Math.min(totalPages-1,p+2):p+1)} style={{
+            position:'absolute',right:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
+            background:'rgba(255,255,255,0.85)',border:'none',color:'#333',fontSize:'1.8rem',
+            padding:'16px 10px',cursor:'pointer',borderRadius:'4px 0 0 4px',
+            WebkitTapHighlightColor:'transparent',
+          }}>›</button>
+        )}
         <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
           <img data-page={currentPage} src={pageImages[currentPage]}
             onTouchStart={handleTouchStart}
@@ -2728,7 +2747,7 @@ function SpotBox({ spot, mode, onRemove, isCurrent, isSelected, onSelect, target
 /* ═══════════════════════════════════════════════════════════════════════
    INTERLEAVED — SESSION SCREEN
 ═══════════════════════════════════════════════════════════════════════ */
-function InterleavedSessionScreen({ pageImages, spots: initialSpots, rotationMode, rotationValue, onBack }) {
+function InterleavedSessionScreen({ pageImages, spots: initialSpots, rotationMode, rotationValue, onBack, onDone }) {
   const [spots, setSpots]                 = useState(()=>initialSpots.map(s=>({...s,checks:0,visited:false})));
   const [currentSpotId, setCurrentSpotId] = useState(null);
   const [currentPage, setCurrentPage]     = useState(0);
@@ -2872,7 +2891,7 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, rotationMod
         fontSize:'1.05rem',color:C.muted,textAlign:'center',maxWidth:300}}>
         {initialSpots.length} spot{initialSpots.length!==1?'s':''}, 5 in a row each.
       </div>
-      <Btn big onClick={onBack}>← BACK TO SCORE</Btn>
+      <Btn big onClick={onDone||onBack}>← BACK TO SCORE</Btn>
     </div>
   );
 
@@ -3657,7 +3676,7 @@ const INSTR_TRANSPOSE = {
   'Piano':0,'Other':0,
 };
 
-function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }) {
+function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, onDone }) {
   const land = useOrientation();
   const isLarge = useIsLarge();
   const [murSpotId, setMurSpotId] = useState(null);
@@ -4284,7 +4303,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack }
       }
     } catch(e){}
     // Go back to score if we came from one, otherwise just close exercises
-    if(piece && pageImages.length>0) { onBack(); } else { setGenerated(false); }
+    if(piece && pageImages.length>0) { (onDone||onBack)(); } else { setGenerated(false); }
   };
 
   const ExercisePanelLarge = generated && exercises.length>0 && (
