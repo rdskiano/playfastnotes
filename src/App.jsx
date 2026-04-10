@@ -3024,7 +3024,9 @@ function InterleavedSessionScreen({ pageImages, spots: initialSpots, rotationMod
         )}
 
         {/* Left page */}
-        <div ref={containerRef} style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
+        <div ref={containerRef} style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}
+          onTouchStart={e=>{e.currentTarget._sw={x:e.touches[0].clientX,t:Date.now()};}}
+          onTouchEnd={e=>{const s=e.currentTarget._sw;if(!s)return;const dx=e.changedTouches[0].clientX-s.x;if(Math.abs(dx)>60&&Date.now()-s.t<400){if(dx<0&&currentPage<totalPages-1)setCurrentPage(p=>showTwo?p+2:p+1);if(dx>0&&currentPage>0)setCurrentPage(p=>showTwo?Math.max(0,p-2):p-1);}}}>
           <img ref={imgRef} src={pageImages[currentPage]}
             style={{width:'100%',height:'100%',objectFit:'contain',display:'block',
               userSelect:'none',WebkitUserSelect:'none'}}
@@ -4875,6 +4877,11 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
     setShowComplete(false);
   };
 
+  const exitWithoutSaving = () => {
+    metro.current.stop();
+    onDone();
+  };
+
   const saveAndExit = async () => {
     metro.current.stop();
     if(profile?.email) {
@@ -5001,7 +5008,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
       {/* Top bar — compact, like ICU */}
       <div style={{flexShrink:0,borderBottom:`1px solid #d4d4d4`,background:'#fff'}}>
         <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 10px'}}>
-          <button onClick={saveAndExit} style={{background:'none',border:`1px solid ${C.bord2}`,color:C.cream,padding:'6px 10px',cursor:'pointer',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',letterSpacing:'0.1em',flexShrink:0}}>← EXIT</button>
+          <button onClick={exitWithoutSaving} style={{background:'none',border:`1px solid ${C.bord2}`,color:C.cream,padding:'6px 10px',cursor:'pointer',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',letterSpacing:'0.1em',flexShrink:0}}>← EXIT</button>
 
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
             {/* Tempo display */}
@@ -5078,75 +5085,32 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
           }}>›</button>
         )}
 
-        {/* Show tempos toggle */}
-        <button onClick={()=>setShowTempos(t=>!t)} style={{
-          position:'absolute',top:8,right:8,zIndex:15,
-          background:showTempos?'rgba(46,170,87,0.9)':'rgba(255,255,255,0.9)',
-          border:`1px solid ${showTempos?'#3db06a':C.bord}`,
-          color:showTempos?'white':C.muted,
-          padding:'4px 10px',borderRadius:3,cursor:'pointer',
-          fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.7rem',
-          letterSpacing:'0.1em',
-          WebkitTapHighlightColor:'transparent',
-        }}>{showTempos?'● TEMPOS':'○ TEMPOS'}</button>
+        {/* Show tempos toggle — removed */}
 
-        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
+        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}
+          onTouchStart={e=>{
+            const t=e.touches[0];
+            e.currentTarget._swipe={x:t.clientX,time:Date.now()};
+          }}
+          onTouchEnd={e=>{
+            const sw=e.currentTarget._swipe;
+            if(!sw) return;
+            const dx=e.changedTouches[0].clientX-sw.x;
+            if(Math.abs(dx)>60 && Date.now()-sw.time<400){
+              if(dx<0 && currentPage<totalPages-1) setCurrentPage(p=>showTwo?p+2:p+1);
+              if(dx>0 && currentPage>0) setCurrentPage(p=>showTwo?Math.max(0,p-2):p-1);
+            }
+          }}>
           <img src={pageImages[currentPage]}
-            style={{width:'100%',height:'100%',objectFit:'contain',display:'block',userSelect:'none'}}
+            style={{width:'100%',height:'100%',objectFit:'contain',display:'block',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}
+            onContextMenu={e=>e.preventDefault()}
             draggable={false} />
-          {/* Tempo overlays for this page */}
-          {showTempos && allSpots.filter(s=>s.score_page===currentPage).map(s=>{
-            const ox = s.visual_offset_x||0;
-            const oy = s.visual_offset_y||0;
-            const isActive = s.id === spotId;
-            return (
-              <div key={s.id} style={{
-                position:'absolute',
-                left:`${(s.score_x+ox)*100}%`,
-                top:`${(s.score_y+oy)*100}%`,
-                transform:'translate(-50%,-120%)',
-                background:isActive?'rgba(61,176,106,0.88)':'rgba(26,22,18,0.85)',
-                border:`1px solid ${isActive?'#3db06a':'#666'}`,
-                borderRadius:4,padding:'3px 8px',
-                pointerEvents:'none',zIndex:12,whiteSpace:'nowrap',
-              }}>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.7rem',
-                  letterSpacing:'0.08em',color:isActive?'white':C.cream,lineHeight:1.2}}>
-                  {s.label ? <span style={{fontSize:'0.6rem',color:isActive?'rgba(255,255,255,0.7)':C.muted}}>{s.label}<br/></span> : null}
-                  {isActive ? bpm : (s.best_tempo||s.start_tempo||'?')} / {s.perf_tempo||'?'}
-                </div>
-              </div>
-            );
-          })}
         </div>
         {showTwo && currentPage+1<totalPages && (
           <div style={{position:'relative',flex:1,minWidth:0,borderLeft:`1px solid ${C.bord}`,overflow:'hidden'}}>
             <img src={pageImages[currentPage+1]}
               style={{width:'100%',height:'100%',objectFit:'contain',display:'block',userSelect:'none'}}
               draggable={false} />
-            {/* Tempo overlays for second page */}
-            {showTempos && allSpots.filter(s=>s.score_page===currentPage+1).map(s=>{
-              const ox = s.visual_offset_x||0;
-              const oy = s.visual_offset_y||0;
-              return (
-                <div key={s.id} style={{
-                  position:'absolute',
-                  left:`${(s.score_x+ox)*100}%`,
-                  top:`${(s.score_y+oy)*100}%`,
-                  transform:'translate(-50%,-120%)',
-                  background:'rgba(255,255,255,0.92)',
-                  border:'1px solid #666',
-                  borderRadius:4,padding:'3px 8px',
-                  pointerEvents:'none',zIndex:12,whiteSpace:'nowrap',
-                }}>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.7rem',
-                    letterSpacing:'0.08em',color:C.cream,lineHeight:1.2}}>
-                    {s.label ? <span style={{fontSize:'0.6rem',color:C.muted}}>{s.label}<br/></span> : null}
-                    {s.best_tempo||s.start_tempo||'?'} / {s.perf_tempo||'?'}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         )}
 
@@ -5495,8 +5459,27 @@ function MarkerScreen({ piece, pageImages, currentPage, setCurrentPage, markers,
         </div>
       </div>
 
-      <div style={{flex:'1 1 0',minHeight:0,background:'#e8e5e0',display:'flex',flexDirection:'row'}}>
-        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
+      <div style={{flex:'1 1 0',minHeight:0,background:'#e8e5e0',display:'flex',flexDirection:'row',position:'relative'}}>
+        {/* Floating page arrows */}
+        {totalPages>1 && currentPage>0 && (
+          <button onClick={()=>setCurrentPage(p=>Math.max(0,showTwoPages?p-2:p-1))} style={{
+            position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
+            background:'rgba(255,255,255,0.85)',border:'none',color:C.cream,fontSize:'1.8rem',
+            padding:'16px 10px',cursor:'pointer',borderRadius:'0 4px 4px 0',
+            WebkitTapHighlightColor:'transparent',
+          }}>‹</button>
+        )}
+        {totalPages>1 && currentPage<totalPages-1 && !(showTwoPages && currentPage+2>=totalPages) && (
+          <button onClick={()=>setCurrentPage(p=>Math.min(totalPages-1,showTwoPages?p+2:p+1))} style={{
+            position:'absolute',right:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
+            background:'rgba(255,255,255,0.85)',border:'none',color:C.cream,fontSize:'1.8rem',
+            padding:'16px 10px',cursor:'pointer',borderRadius:'4px 0 0 4px',
+            WebkitTapHighlightColor:'transparent',
+          }}>›</button>
+        )}
+        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}
+          onTouchStart={e=>{e.currentTarget._sw={x:e.touches[0].clientX,t:Date.now()};}}
+          onTouchEnd={e=>{const s=e.currentTarget._sw;if(!s)return;const dx=e.changedTouches[0].clientX-s.x;if(Math.abs(dx)>60&&Date.now()-s.t<400){if(dx<0&&currentPage<totalPages-1)setCurrentPage(p=>showTwoPages?p+2:p+1);if(dx>0&&currentPage>0)setCurrentPage(p=>showTwoPages?Math.max(0,p-2):p-1);}}}>
           <img ref={imgRef} src={pageImages[currentPage]}
             onLoad={()=>{setLoaded(true);requestAnimationFrame(()=>draw());}}
             onClick={handleTap}
@@ -5710,8 +5693,27 @@ function SessionScreen({ pageImages, markers, N, startTempo, goalTempo, incremen
   );
 
   const photoBlock = (
-    <div style={{flex:'1 1 0',minHeight:0,background:'#e8e5e0',display:'flex'}}>
-      <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
+    <div style={{flex:'1 1 0',minHeight:0,background:'#e8e5e0',display:'flex',position:'relative'}}>
+      {/* Floating page arrows */}
+      {pageImages.length>1 && currentPage>0 && (
+        <button onClick={()=>setCurrentPage(p=>showTwo?Math.max(0,p-2):p-1)} style={{
+          position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
+          background:'rgba(255,255,255,0.85)',border:'none',color:C.cream,fontSize:'1.8rem',
+          padding:'16px 10px',cursor:'pointer',borderRadius:'0 4px 4px 0',
+          WebkitTapHighlightColor:'transparent',
+        }}>‹</button>
+      )}
+      {pageImages.length>1 && currentPage<pageImages.length-1 && !(showTwo && currentPage+2>=pageImages.length) && (
+        <button onClick={()=>setCurrentPage(p=>showTwo?Math.min(pageImages.length-1,p+2):p+1)} style={{
+          position:'absolute',right:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
+          background:'rgba(255,255,255,0.85)',border:'none',color:C.cream,fontSize:'1.8rem',
+          padding:'16px 10px',cursor:'pointer',borderRadius:'4px 0 0 4px',
+          WebkitTapHighlightColor:'transparent',
+        }}>›</button>
+      )}
+      <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}
+        onTouchStart={e=>{e.currentTarget._sw={x:e.touches[0].clientX,t:Date.now()};}}
+        onTouchEnd={e=>{const s=e.currentTarget._sw;if(!s)return;const dx=e.changedTouches[0].clientX-s.x;if(Math.abs(dx)>60&&Date.now()-s.t<400){if(dx<0&&currentPage<pageImages.length-1)setCurrentPage(p=>showTwo?p+2:p+1);if(dx>0&&currentPage>0)setCurrentPage(p=>showTwo?Math.max(0,p-2):p-1);}}}>
         <img ref={imgRef} src={pageImages[currentPage]}
           onLoad={()=>{setImgLoaded(true);requestAnimationFrame(()=>drawOverlay());}}
           style={{width:'100%',height:'95%',objectFit:'contain',display:'block',userSelect:'none'}}
