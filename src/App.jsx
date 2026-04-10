@@ -981,6 +981,7 @@ export default function App() {
           profile={profile}
           piece={piece}
           tapPos={tapPos}
+          spotFilter={selectedSpot}
           onBack={()=>setScreen('score')}
           onPracticeAgain={({strategy, spot, piece:p})=>{
             const pos = {page:spot.score_page, x:spot.score_x, y:spot.score_y};
@@ -1929,9 +1930,14 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     setRecordings(prev=>prev.filter((_,i)=>i!==idx));
   };
 
-  const saveRecording = async (idx) => {
+  const [savingIdx, setSavingIdx] = useState(null);
+  const [newRecSpotName, setNewRecSpotName] = useState('');
+
+  const saveRecording = async (idx, spotId) => {
     const rec = recordings[idx];
     if(rec.saved) return;
+    setSavingIdx(null);
+    setNewRecSpotName('');
     try {
       const reader = new FileReader();
       const b64 = await new Promise((res,rej)=>{
@@ -1947,7 +1953,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         await sbPost('/rest/v1/practice_logs', {
           user_email: prof.email,
           piece_id: piece?.id||null,
-          spot_id: null,
+          spot_id: spotId||null,
           strategy: 'recording',
           session_date: localDate(),
           notes: `🎙 Recording (${fmtDur(rec.duration)}) [audio:${audioKey}]`,
@@ -1955,6 +1961,25 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
       }
       setRecordings(prev=>prev.map((r,i)=>i===idx?{...r,saved:true}:r));
     } catch(e) { console.error('save recording failed', e); }
+  };
+
+  const saveRecordingNewSpot = async (idx, name) => {
+    if(!name.trim()) return;
+    const prof = profile || getProfile();
+    if(!prof.email) return;
+    try {
+      const r = await sbPost('/rest/v1/practice_spots', {
+        user_email: prof.email,
+        piece_id: piece?.id||null,
+        score_page: currentPage,
+        score_x: 0.5,
+        score_y: 0.5,
+        label: name.trim(),
+      });
+      const rows = await r.json();
+      const newId = rows?.[0]?.id || null;
+      await saveRecording(idx, newId);
+    } catch(e) { console.error('create spot failed', e); saveRecording(idx, null); }
   };
 
   const fmtDur = s => `${Math.floor(s/60)}:${(s%60)<10?'0':''}${s%60}`;
@@ -2889,34 +2914,88 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             <div style={{display:'flex',flexDirection:'column',gap:4,
               maxHeight:150,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
               {recordings.map((r,i)=>(
-                <div key={i} style={{display:'flex',alignItems:'center',gap:8,
+                <div key={i} style={{display:'flex',flexDirection:'column',gap:4,
                   padding:'6px 8px',background:'rgba(255,255,255,0.08)',borderRadius:8}}>
-                  <button onClick={()=>playRecording(i)} style={{
-                    width:28,height:28,borderRadius:'50%',
-                    background: playingIdx===i ? '#dc3232' : 'rgba(255,255,255,0.15)',
-                    border:'1px solid rgba(255,255,255,0.3)',
-                    color:'#fff',fontSize:'0.75rem',cursor:'pointer',
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    WebkitTapHighlightColor:'transparent',
-                  }}>{playingIdx===i?'⏸':'▶'}</button>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.7rem',
-                      color:'#fff',letterSpacing:'0.06em'}}>
-                      {r.date} · {fmtDur(r.duration)}
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <button onClick={()=>playRecording(i)} style={{
+                      width:28,height:28,borderRadius:'50%',
+                      background: playingIdx===i ? '#dc3232' : 'rgba(255,255,255,0.15)',
+                      border:'1px solid rgba(255,255,255,0.3)',
+                      color:'#fff',fontSize:'0.75rem',cursor:'pointer',
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                      WebkitTapHighlightColor:'transparent',
+                    }}>{playingIdx===i?'⏸':'▶'}</button>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.7rem',
+                        color:'#fff',letterSpacing:'0.06em'}}>
+                        {r.date} · {fmtDur(r.duration)}
+                      </div>
                     </div>
+                    <button onClick={()=>deleteRecording(i)} style={{
+                      background:'none',border:'none',color:'#888',fontSize:'0.9rem',
+                      cursor:'pointer',padding:'2px 4px',WebkitTapHighlightColor:'transparent',
+                    }}>✕</button>
+                    <button onClick={()=>{
+                      if(r.saved) return;
+                      setSavingIdx(savingIdx===i ? null : i);
+                      setNewRecSpotName('');
+                    }} style={{
+                      background: r.saved ? 'rgba(46,170,87,0.3)' : 'rgba(255,255,255,0.15)',
+                      border:'1px solid rgba(255,255,255,0.3)',
+                      borderRadius:6,padding:'3px 8px',
+                      fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
+                      letterSpacing:'0.06em',color:'#fff',cursor: r.saved?'default':'pointer',
+                      WebkitTapHighlightColor:'transparent',
+                    }}>{r.saved?'✓ SAVED':'SAVE'}</button>
                   </div>
-                  <button onClick={()=>deleteRecording(i)} style={{
-                    background:'none',border:'none',color:'#888',fontSize:'0.9rem',
-                    cursor:'pointer',padding:'2px 4px',WebkitTapHighlightColor:'transparent',
-                  }}>✕</button>
-                  <button onClick={()=>saveRecording(i)} style={{
-                    background: r.saved ? 'rgba(46,170,87,0.3)' : 'rgba(255,255,255,0.15)',
-                    border:'1px solid rgba(255,255,255,0.3)',
-                    borderRadius:6,padding:'3px 8px',
-                    fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
-                    letterSpacing:'0.06em',color:'#fff',cursor: r.saved?'default':'pointer',
-                    WebkitTapHighlightColor:'transparent',
-                  }}>{r.saved?'✓ SAVED':'SAVE'}</button>
+                  {savingIdx===i && !r.saved && (
+                    <div style={{display:'flex',flexDirection:'column',gap:3,
+                      padding:'6px 0 2px',borderTop:'1px solid rgba(255,255,255,0.1)'}}>
+                      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
+                        color:'rgba(255,255,255,0.5)',letterSpacing:'0.08em'}}>SAVE TO SPOT:</div>
+                      <button onClick={()=>saveRecording(i, null)} style={{
+                        background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',
+                        borderRadius:6,padding:'4px 8px',textAlign:'left',
+                        fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
+                        color:'#ccc',cursor:'pointer',WebkitTapHighlightColor:'transparent',
+                      }}>No spot (piece only)</button>
+                      {practiceSpots.filter(s=>s.label).map(s=>(
+                        <button key={s.id} onClick={()=>saveRecording(i, s.id)} style={{
+                          background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',
+                          borderRadius:6,padding:'4px 8px',textAlign:'left',
+                          fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
+                          color:'#fff',cursor:'pointer',WebkitTapHighlightColor:'transparent',
+                        }}>{s.label}</button>
+                      ))}
+                      <div style={{display:'flex',gap:4,marginTop:2}}>
+                        <input
+                          value={newRecSpotName}
+                          onChange={e=>setNewRecSpotName(e.target.value)}
+                          placeholder="New spot name..."
+                          style={{
+                            flex:1,padding:'4px 8px',borderRadius:6,
+                            border:'1px solid rgba(255,255,255,0.2)',
+                            background:'rgba(255,255,255,0.08)',color:'#fff',
+                            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
+                            letterSpacing:'0.04em',outline:'none',
+                          }}
+                          onFocus={e=>{e.target.style.borderColor='rgba(255,255,255,0.4)';}}
+                          onBlur={e=>{e.target.style.borderColor='rgba(255,255,255,0.2)';}}
+                        />
+                        <button onClick={()=>saveRecordingNewSpot(i, newRecSpotName)}
+                          disabled={!newRecSpotName.trim()}
+                          style={{
+                            background: newRecSpotName.trim() ? 'rgba(46,170,87,0.4)' : 'rgba(255,255,255,0.05)',
+                            border:'1px solid rgba(255,255,255,0.2)',
+                            borderRadius:6,padding:'4px 8px',
+                            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.6rem',
+                            color: newRecSpotName.trim() ? '#fff' : '#666',
+                            cursor: newRecSpotName.trim() ? 'pointer' : 'default',
+                            WebkitTapHighlightColor:'transparent',
+                          }}>+ SAVE</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -4345,6 +4424,8 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
   const [exIdx,setExIdx]             = useState(0);
   const [generated,setGenerated]     = useState(false);
   const [docName,setDocName]         = useState(savedExercise?.doc_name||'');
+  const [exerciseId,setExerciseId]   = useState(savedExercise?.id||null);
+  const [origGroup]                  = useState(initGroup); // track original grouping for edit detection
   const [saving,setSaving]           = useState(false);
   const [playingIdx,setPlayingIdx]   = useState(-1);
   const playTimerRef = useRef(null);
@@ -4649,20 +4730,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
     if(!docName.trim()) { setSaveMsg('Please add a title first.'); return false; }
     setSaving(true); setSaveMsg(''); setDupWarning(false);
     try {
-      // Duplicate check: same notes + grouping for this user
-      if(!force) {
-        const r = await sbGet(
-          `/rest/v1/exercises?user_email=eq.${encodeURIComponent(profile.email)}&notes=eq.${encodeURIComponent(selNotes.join(','))}&grouping=eq.${encodeURIComponent(g2s(activeGroup))}&limit=1`
-        );
-        const existing = await r.json();
-        if(existing?.length > 0) {
-          setSaveMsg('');
-          setDupWarning(true);
-          setSaving(false);
-          return true; // duplicate counts as "saved" — not a failure
-        }
-      }
-      const res = await sbPost('/rest/v1/exercises',{
+      const payload = {
         user_email:profile.email,doc_name:docName.trim(),
         grouping:g2s(activeGroup),clef,key,notes:selNotes.join(','),
         instrument:instrName||profile.instrument||'',
@@ -4670,8 +4738,34 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
         score_page:tapPos?.page??null,
         score_y:tapPos?.y??null,
         spot_id:murSpotId||null,
-      });
+      };
+
+      // If editing an existing exercise with same grouping, update it
+      if(exerciseId && !force && activeGroup === origGroup) {
+        const res = await sbPatch(`/rest/v1/exercises?id=eq.${exerciseId}`, payload);
+        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+        setSaveMsg('Updated!'); setTimeout(()=>setSaveMsg(''),2500);
+        setSaving(false);
+        return true;
+      }
+
+      // Creating new — duplicate check
+      if(!force) {
+        const r = await sbGet(
+          `/rest/v1/exercises?user_email=eq.${encodeURIComponent(profile.email)}&notes=eq.${encodeURIComponent(selNotes.join(','))}&grouping=eq.${encodeURIComponent(g2s(activeGroup))}&limit=1`
+        );
+        const existing = await r.json();
+        if(existing?.length > 0 && existing[0].id !== exerciseId) {
+          setSaveMsg('');
+          setDupWarning(true);
+          setSaving(false);
+          return true;
+        }
+      }
+      const res = await sbPost('/rest/v1/exercises', payload);
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const rows = await res.json();
+      if(rows?.[0]?.id) setExerciseId(rows[0].id);
       setSaveMsg('Saved!'); setTimeout(()=>setSaveMsg(''),2500);
       setSaving(false);
       return true;
@@ -4945,6 +5039,127 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
     if(piece && pageImages.length>0) { (onDone||onBack)(); } else { setGenerated(false); }
   };
 
+  const [exporting, setExporting] = useState(false);
+
+  const exportPdf = async () => {
+    setExporting(true);
+    try {
+      // Load jsPDF dynamically
+      if(!window.jspdf) {
+        await new Promise((res,rej)=>{
+          const s=document.createElement('script');
+          s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js';
+          s.onload=res; s.onerror=rej;
+          document.head.appendChild(s);
+        });
+      }
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({orientation:'portrait', unit:'pt', format:'letter'});
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 36;
+      const usableW = pageW - margin*2;
+      let curY = margin;
+
+      // Title
+      pdf.setFont('helvetica','bold');
+      pdf.setFontSize(16);
+      pdf.text(docName || 'Rhythm Exercises', margin, curY + 14);
+      curY += 30;
+      pdf.setFont('helvetica','normal');
+      pdf.setFontSize(9);
+      pdf.text(`${selNotes.length} notes · ${g2s(activeGroup)} · Key: ${murKey} · ${new Date().toLocaleDateString()}`, margin, curY);
+      curY += 20;
+
+      // Render each exercise SVG to canvas then to PDF
+      for(let i=0; i<exercises.length; i++) {
+        const svgEl = document.querySelector('#mur-ex-'+i+' svg') ||
+                      document.querySelector('[id^="ex-phone"] svg');
+        if(!svgEl) continue;
+
+        // Re-render to a temporary div for clean capture
+        const tmpDiv = document.createElement('div');
+        tmpDiv.style.cssText='position:absolute;left:-9999px;top:0;background:white;';
+        document.body.appendChild(tmpDiv);
+        const abc = buildAbcString(exercises[i].pat, selNotes, clef, murKey);
+        try {
+          // Use wrap to ensure breaks only at barlines, 4 measures per line
+          window.ABCJS.renderAbc(tmpDiv, abc, {
+            scale:1.3,
+            staffwidth: Math.round(usableW * 1.25),
+            paddingright:10,paddingleft:10,paddingbottom:4,paddingtop:4,
+            add_classes:true,
+            wrap:{minSpacing:1.5, maxSpacing:2.6, preferredMeasuresPerLine:4},
+          });
+        } catch(e){ document.body.removeChild(tmpDiv); continue; }
+
+        const svg = tmpDiv.querySelector('svg');
+        if(!svg) { document.body.removeChild(tmpDiv); continue; }
+
+        // Style SVG elements for export (black)
+        svg.querySelectorAll('path,rect,ellipse,line,text').forEach(el=>{
+          el.style.fill='#000'; el.style.stroke='#000';
+        });
+
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const svgW = parseFloat(svg.getAttribute('width')) || svg.getBoundingClientRect().width || 600;
+        const svgH = parseFloat(svg.getAttribute('height')) || svg.getBoundingClientRect().height || 80;
+
+        // Convert SVG to canvas
+        const canvas = document.createElement('canvas');
+        const scale = 3; // high res
+        canvas.width = svgW * scale;
+        canvas.height = svgH * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+
+        const img = new Image();
+        const blob = new Blob([svgData], {type:'image/svg+xml;charset=utf-8'});
+        const url = URL.createObjectURL(blob);
+
+        await new Promise((res,rej)=>{
+          img.onload = res;
+          img.onerror = rej;
+          img.src = url;
+        });
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        document.body.removeChild(tmpDiv);
+
+        const imgData = canvas.toDataURL('image/png');
+        const drawW = usableW;
+        const drawH = (svgH / svgW) * drawW;
+
+        // Check if we need a new page
+        if(curY + drawH + 20 > pageH - margin) {
+          pdf.addPage();
+          curY = margin;
+        }
+
+        // Exercise label
+        pdf.setFont('helvetica','normal');
+        pdf.setFontSize(8);
+        pdf.setTextColor(120);
+        pdf.text(`${i+1}. ${exercises[i].pat.timeSig}  ·  ${exercises[i].pat.section.replace(' Rhythm Patterns','')}`, margin, curY + 8);
+        pdf.setTextColor(0);
+        curY += 12;
+
+        pdf.addImage(imgData, 'PNG', margin, curY, drawW, drawH);
+        curY += drawH + 8;
+      }
+
+      // Download
+      const filename = `${(docName||'rhythm-exercises').replace(/[^a-z0-9]/gi,'_')}.pdf`;
+      pdf.save(filename);
+    } catch(e) {
+      console.error('PDF export failed', e);
+      alert('PDF export failed — check console for details.');
+    }
+    setExporting(false);
+  };
+
   const ExercisePanelLarge = generated && exercises.length>0 && (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <div style={{display:'flex',alignItems:'center',gap:8,
@@ -4957,6 +5172,13 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
             letterSpacing:'0.1em',color:C.cream,overflow:'hidden',textOverflow:'ellipsis',
             whiteSpace:'nowrap'}}>{docName}</span>
         )}
+        <button onClick={exportPdf} disabled={exporting} style={{
+          background:'#4a78ff',border:'1px solid #4a78ff',
+          color:'white',padding:'7px 14px',cursor: exporting?'wait':'pointer',
+          fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.9rem',
+          letterSpacing:'0.1em',flexShrink:0,WebkitTapHighlightColor:'transparent',
+          opacity:exporting?0.6:1,
+        }}>{exporting?'EXPORTING...':'📄 EXPORT PDF'}</button>
         <button onClick={handleRVDone} style={{
           background:C.accent,border:`1px solid ${C.accent}`,
           color:'white',padding:'7px 14px',cursor:'pointer',
@@ -5012,12 +5234,21 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
             style={{background:'none',border:`1px solid ${C.bord}`,color:C.cream,
               width:36,height:36,cursor:'pointer',fontSize:'1rem',opacity:exIdx===exercises.length-1?0.35:1}}>&#8594;</button>
         </div>
-        <button onClick={handleRVDone} style={{
-          background:C.accent,border:`1px solid ${C.accent}`,
-          color:'white',padding:'5px 12px',cursor:'pointer',
-          fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
-          letterSpacing:'0.1em',flexShrink:0,WebkitTapHighlightColor:'transparent',
-        }}>DONE ✓</button>
+        <div style={{display:'flex',gap:6}}>
+          <button onClick={exportPdf} disabled={exporting} style={{
+            background:'#4a78ff',border:'1px solid #4a78ff',
+            color:'white',padding:'5px 10px',cursor: exporting?'wait':'pointer',
+            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.75rem',
+            letterSpacing:'0.08em',flexShrink:0,WebkitTapHighlightColor:'transparent',
+            opacity:exporting?0.6:1,
+          }}>{exporting?'...':'📄 PDF'}</button>
+          <button onClick={handleRVDone} style={{
+            background:C.accent,border:`1px solid ${C.accent}`,
+            color:'white',padding:'5px 12px',cursor:'pointer',
+            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.85rem',
+            letterSpacing:'0.1em',flexShrink:0,WebkitTapHighlightColor:'transparent',
+          }}>DONE ✓</button>
+        </div>
       </div>
       <div ref={exDivRef} style={{background:'white',flex:'1 1 0',overflowY:'auto',padding:'8px 12px'}} />
     </div>
@@ -5069,6 +5300,37 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
                   fontSize:'0.9rem',cursor:'pointer'}}>
                 <option value="treble">Treble</option><option value="bass">Bass</option>
                 <option value="alto">Alto</option><option value="tenor">Tenor</option>
+              </select>
+              <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',
+                color:C.muted,pointerEvents:'none',fontSize:'0.65rem'}}>&#9662;</span>
+            </div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:4}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.78rem',
+              letterSpacing:'0.18em',color:C.muted}}>KEY</div>
+            <div style={{position:'relative'}}>
+              <select value={key} onChange={e=>{
+                setKey(e.target.value);
+                const flatKeys=['F','Bb','Eb','Ab','Db','Gb'];
+                setAccMode(flatKeys.includes(e.target.value)?'flat':'sharp');
+              }}
+                style={{minWidth:80,appearance:'none',WebkitAppearance:'none',
+                  background:'#fff',border:`1px solid ${C.bord}`,color:C.cream,
+                  padding:'7px 26px 7px 10px',fontFamily:"'Cormorant Garamond',serif",
+                  fontSize:'0.9rem',cursor:'pointer'}}>
+                <option value="C">C major</option>
+                <option value="G">G major</option>
+                <option value="D">D major</option>
+                <option value="A">A major</option>
+                <option value="E">E major</option>
+                <option value="B">B major</option>
+                <option value="Fs">F♯ major</option>
+                <option value="F">F major</option>
+                <option value="Bb">B♭ major</option>
+                <option value="Eb">E♭ major</option>
+                <option value="Ab">A♭ major</option>
+                <option value="Db">D♭ major</option>
+                <option value="Gb">G♭ major</option>
               </select>
               <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',
                 color:C.muted,pointerEvents:'none',fontSize:'0.65rem'}}>&#9662;</span>
@@ -5151,7 +5413,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
                 color:saveMsg.includes('title')||saveMsg.includes('failed')?'#e57373':C.gold}}>{saveMsg}</div>}
               {dupWarning && (
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-                  <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:'#e5a835'}}>Duplicate — save anyway?</span>
+                  <span style={{fontFamily:"'Inconsolata',monospace",fontSize:'0.75rem',color:'#e5a835'}}>Duplicate found — save as new copy?</span>
                   <button onClick={()=>saveExercise(true)} style={{background:C.accent,border:'none',color:'white',
                     padding:'3px 10px',fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.78rem',cursor:'pointer'}}>YES</button>
                   <button onClick={()=>setDupWarning(false)} style={{background:'none',border:`1px solid ${C.bord}`,
@@ -5835,7 +6097,7 @@ function SlowClickUpScreen({ profile, piece, pageImages, tapPos, scuSpot, onBack
 /* ═══════════════════════════════════════════════════════════════════════
    SPOT LOG — practice history for a specific spot
 ═══════════════════════════════════════════════════════════════════════ */
-function SpotLogScreen({ profile, piece, tapPos, onBack, onPracticeAgain }) {
+function SpotLogScreen({ profile, piece, tapPos, spotFilter, onBack, onPracticeAgain }) {
   const [logs, setLogs] = useState([]);
   const [spots, setSpots] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -5846,8 +6108,10 @@ function SpotLogScreen({ profile, piece, tapPos, onBack, onPracticeAgain }) {
     (async ()=>{
       if(!profile?.email) return;
       try {
+        let logUrl = `/rest/v1/practice_logs?user_email=eq.${encodeURIComponent(profile.email)}&piece_id=eq.${piece?.id||''}&order=session_date.desc,created_at.desc&limit=100`;
+        if(spotFilter?.id) logUrl += `&spot_id=eq.${spotFilter.id}`;
         const [lr, sr] = await Promise.all([
-          sbGet(`/rest/v1/practice_logs?user_email=eq.${encodeURIComponent(profile.email)}&piece_id=eq.${piece?.id||''}&order=session_date.desc,created_at.desc&limit=100`),
+          sbGet(logUrl),
           sbGet(`/rest/v1/practice_spots?user_email=eq.${encodeURIComponent(profile.email)}&piece_id=eq.${piece?.id||''}`),
         ]);
         setLogs(await lr.json()||[]);
@@ -5959,7 +6223,11 @@ function SpotLogScreen({ profile, piece, tapPos, onBack, onPracticeAgain }) {
 
   return (
     <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
-      <TopBar left={<BackBtn onClick={onBack}/>} center={piece?.title ? `JOURNAL — ${piece.title}` : 'PRACTICE JOURNAL'} right={null}/>
+      <TopBar left={<BackBtn onClick={onBack}/>} center={
+        spotFilter?.label
+          ? `JOURNAL — ${spotFilter.label}`
+          : piece?.title ? `JOURNAL — ${piece.title}` : 'PRACTICE JOURNAL'
+      } right={null}/>
       <div style={{flex:'1 1 0',overflowY:'auto',padding:16,WebkitOverflowScrolling:'touch'}}>
 
         {/* Delete confirmation */}
@@ -5997,7 +6265,7 @@ function SpotLogScreen({ profile, piece, tapPos, onBack, onPracticeAgain }) {
         {loading && <div style={{fontFamily:"'Inconsolata',monospace",fontSize:'1rem',color:C.muted,textAlign:'center',padding:40}}>Loading...</div>}
         {!loading && logs.length===0 && (
           <div style={{textAlign:'center',padding:60,color:C.muted,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:'1.2rem'}}>
-            No practice sessions for this piece yet.
+            No practice sessions{spotFilter?.label ? ` for "${spotFilter.label}"` : ' for this piece'} yet.
           </div>
         )}
         {!loading && Object.entries(byDate).map(([date, dayLogs]) => {
