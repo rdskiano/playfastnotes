@@ -3900,28 +3900,23 @@ function StrategyOverlay({ piece, profile, tapPos, selectedSpot, onClose, onICU,
       const nb = [], ul = [];
 
       all.forEach(ex => {
-        // If a specific spot is selected, match by spot_id first
-        if(selectedSpot) {
-          if(ex.spot_id === selectedSpot.id) { nb.push(ex); return; }
-          // Also check proximity as fallback for exercises without spot_id
-          if(!ex.spot_id && ex.score_page != null && ex.score_y != null) {
-            if(ex.piece_id && piece?.id && String(ex.piece_id) !== String(piece.id)) return;
-            const samePage = parseInt(ex.score_page) === selectedSpot.score_page;
-            const closeY = Math.abs(parseFloat(ex.score_y) - selectedSpot.score_y) < 0.05;
-            if(samePage && closeY) { nb.push(ex); return; }
-          }
-          // Not linked and not close — check if unlocated
-          if(ex.score_page == null && ex.score_y == null && !ex.spot_id) ul.push(ex);
-          return;
+        // Match by spot_id
+        if(selectedSpot && ex.spot_id === selectedSpot.id) { nb.push(ex); return; }
+
+        // Match by proximity (works whether or not selectedSpot is set)
+        const refPage = selectedSpot?.score_page ?? tapPos?.page;
+        const refY = selectedSpot?.score_y ?? tapPos?.y ?? 0;
+        const hasLocation = ex.score_page != null && ex.score_y != null;
+
+        if(hasLocation) {
+          if(ex.piece_id && piece?.id && String(ex.piece_id) !== String(piece.id)) return;
+          const samePage = parseInt(ex.score_page) === refPage;
+          const closeY = Math.abs(parseFloat(ex.score_y) - refY) < 0.12;
+          if(samePage && closeY) { nb.push(ex); return; }
         }
 
-        // No specific spot — use proximity matching
-        const hasLocation = ex.score_page != null || ex.score_y != null;
-        if(!hasLocation && !ex.spot_id) { ul.push(ex); return; }
-        if(ex.piece_id && piece?.id && String(ex.piece_id) !== String(piece.id)) return;
-        const samePage = parseInt(ex.score_page) === tapPos?.page;
-        const closeY = Math.abs(parseFloat(ex.score_y) - (tapPos?.y||0)) < 0.12;
-        if(samePage && closeY) nb.push(ex);
+        // Unlocated exercises (no page, no spot_id)
+        if(!hasLocation && !ex.spot_id) { ul.push(ex); }
       });
 
       setNearby(nb);
@@ -4115,7 +4110,14 @@ function StrategyOverlay({ piece, profile, tapPos, selectedSpot, onClose, onICU,
                 {nearby.map(ex=>(
                   <ExerciseCard key={ex.id} ex={ex}
                     confirmDelete={confirmDelete} setConfirmDelete={setConfirmDelete}
-                    deleting={deleting} onDelete={deleteExercise} onOpen={onRV}/>
+                    deleting={deleting} onDelete={deleteExercise} onOpen={(ex)=>{
+                      // Adopt: link exercise to this spot if not already linked
+                      if(selectedSpot?.id && ex.spot_id !== selectedSpot.id) {
+                        sbPatch(`/rest/v1/exercises?id=eq.${ex.id}`, {spot_id: selectedSpot.id}).catch(()=>{});
+                        ex = {...ex, spot_id: selectedSpot.id};
+                      }
+                      onRV(ex);
+                    }}/>
                 ))}
               </>
             )}
@@ -5098,16 +5100,18 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
 
         // Style SVG elements for export (black)
         svg.querySelectorAll('path,rect,ellipse,line,text').forEach(el=>{
-          el.style.fill='#000'; el.style.stroke='#000';
+          if(el.style) { el.style.fill='#000'; el.style.stroke='#000'; }
         });
+        // Ensure xmlns is set for standalone SVG parsing
+        if(!svg.getAttribute('xmlns')) svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
 
         const svgData = new XMLSerializer().serializeToString(svg);
         const svgW = parseFloat(svg.getAttribute('width')) || svg.getBoundingClientRect().width || 600;
         const svgH = parseFloat(svg.getAttribute('height')) || svg.getBoundingClientRect().height || 80;
 
-        // Convert SVG to canvas
+        // Convert SVG to canvas using data URL (more reliable than blob URL on Safari)
         const canvas = document.createElement('canvas');
-        const scale = 3; // high res
+        const scale = 2; // balance quality vs memory
         canvas.width = svgW * scale;
         canvas.height = svgH * scale;
         const ctx = canvas.getContext('2d');
@@ -5115,17 +5119,17 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
         ctx.fillRect(0,0,canvas.width,canvas.height);
 
         const img = new Image();
-        const blob = new Blob([svgData], {type:'image/svg+xml;charset=utf-8'});
-        const url = URL.createObjectURL(blob);
+        const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
 
         await new Promise((res,rej)=>{
           img.onload = res;
-          img.onerror = rej;
-          img.src = url;
+          img.onerror = (e)=>{ console.error('SVG load error for exercise',i,e); res(); }; // skip on error, don't abort
+          img.src = dataUrl;
         });
 
+        if(img.naturalWidth === 0) { document.body.removeChild(tmpDiv); continue; } // skip if image didn't load
+
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        URL.revokeObjectURL(url);
         document.body.removeChild(tmpDiv);
 
         const imgData = canvas.toDataURL('image/png');
@@ -5155,7 +5159,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
       pdf.save(filename);
     } catch(e) {
       console.error('PDF export failed', e);
-      alert('PDF export failed — check console for details.');
+      alert('PDF export failed: ' + (e.message||'Unknown error') + '\n\nCheck console for details.');
     }
     setExporting(false);
   };
