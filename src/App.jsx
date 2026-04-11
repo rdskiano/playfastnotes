@@ -5202,10 +5202,10 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
       +'.ex-staff svg path,.ex-staff svg line,.ex-staff svg text,.ex-staff svg rect,.ex-staff svg ellipse{fill:#000!important;stroke:#000!important;}'
       +'@media print{.no-print{display:none!important;}body{width:7.5in;}}'
       +'</style></head><body>'
+      +'<div class="no-print" style="text-align:center;padding:12px 0 16px;display:flex;gap:12px;justify-content:center;"><button onclick="window.close()" style="font-size:16px;padding:12px 32px;background:#666;color:white;border:none;border-radius:8px;cursor:pointer;">\u2190 Back to App</button><button onclick="window.print()" style="font-size:16px;padding:12px 32px;background:#4a78ff;color:white;border:none;border-radius:8px;cursor:pointer;">Print / Save as PDF</button></div>'
       +'<div class="title">'+(docName||'Rhythm Exercises')+'</div>'
       +'<div class="subtitle">'+selNotes.length+' notes \u00b7 '+g2s(activeGroup)+' \u00b7 Key: '+abcKey+' \u00b7 '+new Date().toLocaleDateString()+'</div>'
       +exHtml
-      +'<div class="no-print" style="text-align:center;padding:20px;display:flex;gap:12px;justify-content:center;"><button onclick="window.close()" style="font-size:16px;padding:12px 32px;background:#666;color:white;border:none;border-radius:8px;cursor:pointer;">\u2190 Back to App</button><button onclick="window.print()" style="font-size:16px;padding:12px 32px;background:#4a78ff;color:white;border:none;border-radius:8px;cursor:pointer;">Print / Save as PDF</button></div>'
       +'<script>var abcData='+JSON.stringify(abcStrings)+';'
       +'window.addEventListener("load",function(){'
       +'abcData.forEach(function(abc,i){'
