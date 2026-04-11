@@ -4728,10 +4728,11 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
     const div = liveStaffRef.current;
     if(!ABCJS || !div) return;
     const abcClef = clef==='bass'?' clef=bass':clef==='alto'?' clef=alto':clef==='tenor'?' clef=tenor':'';
+    const keyMap={'C':'C','G':'G','D':'D','A':'A','E':'E','B':'B','Fs':'F#','F':'F','Bb':'Bb','Eb':'Eb','Ab':'Ab','Db':'Db','Gb':'Gb'};
+    const abcKey = keyMap[key]||'C';
     const w = Math.max((div.offsetWidth||400)-16, 200);
     if(!selNotes.length) {
-      // Show empty staff with just the clef — no time sig
-      const abc=`X:1\nM:none\nL:1/32\nK:C${abcClef}\n|z32|`;
+      const abc=`X:1\nM:none\nL:1/32\nK:${abcKey}${abcClef}\n|z32|`;
       try {
         ABCJS.renderAbc(div, abc, {
           scale:1.0, staffwidth:w,
@@ -4752,7 +4753,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
       const octMod=oct===3?',':(oct===2?',,':(oct===1?',,,':(oct===6?"'":(oct===7?"''":''))));
       return prefix+letter+octMod+'8';
     }).join(' ');
-    const abc=`X:1\nM:none\nL:1/32\nK:C${abcClef}\n|${abcNotes}|`;
+    const abc=`X:1\nM:none\nL:1/32\nK:${abcKey}${abcClef}\n|${abcNotes}|`;
     try {
       ABCJS.renderAbc(div, abc, {
         scale:1.0, staffwidth:w,
@@ -4763,7 +4764,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
         el.style.fill='#1a1208'; el.style.stroke='#1a1208';
       });
     } catch(e){}
-  },[selNotes,clef,generated]);
+  },[selNotes,clef,key,generated]);
 
   // ── ABCJS exercise rendering ───────────────────────────────────────
   useEffect(()=>{
