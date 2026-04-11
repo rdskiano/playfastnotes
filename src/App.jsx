@@ -1857,77 +1857,81 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
 
   const exportAnnotatedPdf = async () => {
     setExportingScore(true);
+    let step = 'init';
     try {
+      step = 'loading jsPDF';
       if(!window.jspdf) {
         await new Promise((res,rej)=>{
           const s=document.createElement('script');
           s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js';
-          s.onload=res; s.onerror=rej;
+          s.onload=res; s.onerror=()=>rej(new Error('CDN load failed'));
           document.head.appendChild(s);
         });
       }
       const { jsPDF } = window.jspdf;
 
-      // Helper: load image as blob URL to avoid CORS taint
+      step = 'fetching first image';
       const loadImg = async (src) => {
-        try {
-          const resp = await fetch(src);
-          const blob = await resp.blob();
-          const url = URL.createObjectURL(blob);
-          const im = await new Promise((res,rej)=>{
-            const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url;
-          });
-          return {im, url};
-        } catch(e) {
-          // Fallback: load directly (may taint canvas)
-          const im = await new Promise((res,rej)=>{
-            const i=new Image(); i.crossOrigin='anonymous';
-            i.onload=()=>res(i); i.onerror=rej; i.src=src;
-          });
-          return {im, url:null};
-        }
+        const resp = await fetch(src);
+        if(!resp.ok) throw new Error('fetch status '+resp.status);
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const im = await new Promise((res,rej)=>{
+          const i=new Image();
+          i.onload=()=>res(i);
+          i.onerror=()=>rej(new Error('img load failed'));
+          i.src=url;
+        });
+        return {im, url};
       };
 
       const first = await loadImg(pageImages[0]);
-      const imgAspect = first.im.naturalWidth / first.im.naturalHeight;
-      const pdf = new jsPDF({orientation: imgAspect>1?'landscape':'portrait', unit:'pt', format:'letter'});
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
+      const aspect = first.im.naturalWidth / first.im.naturalHeight;
       if(first.url) URL.revokeObjectURL(first.url);
 
+      step = 'creating PDF document';
+      const pdf = new jsPDF({orientation: aspect>1?'landscape':'portrait', unit:'pt', format:'letter'});
+      const pw = pdf.internal.pageSize.getWidth();
+      const ph = pdf.internal.pageSize.getHeight();
+
       for(let p=0; p<pageImages.length; p++) {
+        step = 'page '+(p+1)+' fetch';
         if(p > 0) pdf.addPage();
-        const {im: img, url: blobUrl} = await loadImg(pageImages[p]);
-        const canvas = document.createElement('canvas');
-        const scale = 2;
-        canvas.width = img.naturalWidth * scale;
-        canvas.height = img.naturalHeight * scale;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        if(blobUrl) URL.revokeObjectURL(blobUrl);
-        // Overlay annotations
+        const {im: img, url: bu} = await loadImg(pageImages[p]);
+
+        step = 'page '+(p+1)+' canvas';
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        if(bu) URL.revokeObjectURL(bu);
+
+        // annotations
         (annotations[p]||[]).forEach(s=>{
           if(s.points.length<2) return;
           ctx.beginPath();
-          ctx.strokeStyle=s.color; ctx.lineWidth=s.width*scale;
+          ctx.strokeStyle=s.color; ctx.lineWidth=Math.max(1,s.width);
           ctx.lineCap='round'; ctx.lineJoin='round';
-          ctx.moveTo(s.points[0].x*canvas.width, s.points[0].y*canvas.height);
-          for(let j=1;j<s.points.length;j++)
-            ctx.lineTo(s.points[j].x*canvas.width, s.points[j].y*canvas.height);
+          ctx.moveTo(s.points[0].x*c.width, s.points[0].y*c.height);
+          for(let j=1;j<s.points.length;j++) ctx.lineTo(s.points[j].x*c.width, s.points[j].y*c.height);
           ctx.stroke();
         });
-        const imgData = canvas.toDataURL('image/jpeg', 0.92);
-        const fitH = pageW / (img.naturalWidth / img.naturalHeight);
-        const finalW = fitH>pageH ? pageH*(img.naturalWidth/img.naturalHeight) : pageW;
-        const finalH = fitH>pageH ? pageH : fitH;
-        pdf.addImage(imgData, 'JPEG', (pageW-finalW)/2, (pageH-finalH)/2, finalW, finalH);
+
+        step = 'page '+(p+1)+' toDataURL';
+        const data = c.toDataURL('image/jpeg',0.85);
+
+        step = 'page '+(p+1)+' addImage';
+        const r = img.naturalWidth/img.naturalHeight;
+        let fw=pw, fh=pw/r;
+        if(fh>ph){fh=ph;fw=ph*r;}
+        pdf.addImage(data,'JPEG',(pw-fw)/2,(ph-fh)/2,fw,fh);
       }
-      pdf.save(`${(piece?.title||'score').replace(/[^a-z0-9]/gi,'_')}_annotated.pdf`);
+
+      step = 'saving';
+      pdf.save((piece?.title||'score').replace(/[^a-z0-9]/gi,'_')+'_annotated.pdf');
     } catch(e) {
-      console.error('Annotated PDF export failed', e);
-      alert('Export failed: '+(e.message||'Unknown error'));
+      console.error('Export failed at:', step, e);
+      alert('Export failed at: '+step+'\n\n'+(e instanceof Error?e.message:String(e)));
     }
     setExportingScore(false);
   };
