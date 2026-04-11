@@ -5172,11 +5172,8 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
 
   const [exporting, setExporting] = useState(false);
 
-  const [exportProgress, setExportProgress] = useState('');
-
   const exportPdf = async () => {
     setExporting(true);
-    setExportProgress(`Preparing... 0/${exercises.length}`);
     try {
       const pdf = new jsPDF({orientation:'portrait', unit:'pt', format:'letter'});
       const pageW = pdf.internal.pageSize.getWidth();
@@ -5195,15 +5192,27 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
       pdf.text(`${selNotes.length} notes \u00b7 ${g2s(activeGroup)} \u00b7 Key: ${key} \u00b7 ${new Date().toLocaleDateString()}`, margin, curY);
       curY += 16;
 
-      // Create a hidden render container (visible to html2canvas but covered by overlay)
+      // Create render container — fully opaque, behind progress overlay
       const renderBox = document.createElement('div');
-      renderBox.style.cssText='position:fixed;left:0;top:0;width:'+Math.round(usableW*1.38)+'px;background:white;z-index:9998;opacity:0.01;pointer-events:none;';
+      renderBox.style.cssText='position:fixed;left:0;top:0;width:'+Math.round(usableW*1.38)+'px;background:white;z-index:9998;padding:4px 8px;';
+      document.body.appendChild(renderBox);
+
+      // Full-viewport progress overlay on top
+      const overlay = document.createElement('div');
+      overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(255,255,255,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);';
+      overlay.innerHTML=`<div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:0.12em;color:#4a78ff">GENERATING PDF</div><div id="pfn-export-msg" style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1.1rem;color:#666">Preparing...</div><div style="width:200px;height:4px;background:#e0e0e0;border-radius:2px;overflow:hidden"><div id="pfn-export-bar" style="height:100%;background:#4a78ff;border-radius:2px;width:0%;transition:width 0.3s"></div></div><div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:0.9rem;color:#999;margin-top:8px">This may take a minute for many exercises</div>`;
+      document.body.appendChild(overlay);
+      const updateProgress = (i) => {
+        const msg = overlay.querySelector('#pfn-export-msg');
+        const bar = overlay.querySelector('#pfn-export-bar');
+        if(msg) msg.textContent = `Rendering ${i+1} of ${exercises.length}...`;
+        if(bar) bar.style.width = Math.round(((i+1)/exercises.length)*100)+'%';
+      };
       document.body.appendChild(renderBox);
 
       for(let i=0; i<exercises.length; i++) {
-        setExportProgress(`Rendering ${i+1} of ${exercises.length}...`);
-        // Allow UI to update
-        await new Promise(r=>setTimeout(r,50));
+        updateProgress(i);
+        await new Promise(r=>setTimeout(r,30));
 
         try {
           renderBox.innerHTML = '';
@@ -5247,36 +5256,20 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
       }
 
       document.body.removeChild(renderBox);
-      setExportProgress('Saving PDF...');
-      await new Promise(r=>setTimeout(r,50));
+      document.body.removeChild(overlay);
       pdf.save((docName||'rhythm-exercises').replace(/[^a-z0-9]/gi,'_')+'.pdf');
     } catch(e) {
       console.error('PDF export failed', e);
+      document.querySelectorAll('[id^="pfn-export"]').forEach(el=>el.parentElement?.remove());
+      try { document.body.querySelectorAll('[style*="z-index: 9998"]').forEach(el=>el.remove()); } catch(x){}
+      try { document.body.querySelectorAll('[style*="z-index: 9999"]').forEach(el=>el.remove()); } catch(x){}
       alert('Export failed: '+(e instanceof Error?e.message:String(e)));
     }
     setExporting(false);
-    setExportProgress('');
   };
 
   const ExercisePanelLarge = generated && exercises.length>0 && (
-    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,position:'relative'}}>
-      {exporting && exportProgress && (
-        <div style={{position:'absolute',inset:0,zIndex:50,
-          background:'rgba(255,255,255,0.92)',backdropFilter:'blur(4px)',
-          display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.4rem',
-            letterSpacing:'0.12em',color:'#4a78ff'}}>GENERATING PDF</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-            fontSize:'1.1rem',color:'#666'}}>{exportProgress}</div>
-          <div style={{width:200,height:4,background:'#e0e0e0',borderRadius:2,overflow:'hidden'}}>
-            <div style={{height:'100%',background:'#4a78ff',borderRadius:2,
-              width:`${Math.round(((parseInt(exportProgress.match(/\d+/)?.[0])||0)/exercises.length)*100)}%`,
-              transition:'width 0.3s'}}/>
-          </div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-            fontSize:'0.9rem',color:'#999',marginTop:8}}>This may take a minute for many exercises</div>
-        </div>
-      )}
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <div style={{display:'flex',alignItems:'center',gap:8,
         padding:'6px 14px',flexShrink:0,background:'#fff',borderBottom:`1px solid ${C.bord}`}}>
         <Btn onClick={()=>setGenerated(false)} style={{fontSize:'0.85rem',padding:'7px 14px',flexShrink:0}}>
@@ -5321,22 +5314,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
   );
 
   const ExercisePanelSmall = generated && exercises.length>0 && (
-    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0,position:'relative'}}>
-      {exporting && exportProgress && (
-        <div style={{position:'absolute',inset:0,zIndex:50,
-          background:'rgba(255,255,255,0.92)',backdropFilter:'blur(4px)',
-          display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:'1.2rem',
-            letterSpacing:'0.12em',color:'#4a78ff'}}>GENERATING PDF</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',
-            fontSize:'1rem',color:'#666'}}>{exportProgress}</div>
-          <div style={{width:160,height:3,background:'#e0e0e0',borderRadius:2,overflow:'hidden'}}>
-            <div style={{height:'100%',background:'#4a78ff',borderRadius:2,
-              width:`${Math.round(((parseInt(exportProgress.match(/\d+/)?.[0])||0)/exercises.length)*100)}%`,
-              transition:'width 0.3s'}}/>
-          </div>
-        </div>
-      )}
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 0',minHeight:0}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
         padding:'6px 10px',flexShrink:0,background:'#fff',borderTop:`1px solid ${C.bord}`}}>
         <button onClick={()=>setGenerated(false)}
