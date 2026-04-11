@@ -1791,71 +1791,92 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     return ()=>ro.disconnect();
   },[currentPage, drawAnnotations]);
 
-  const handleAnnotPointerDown = (e) => {
-    const isPen = e.pointerType === 'pen';
-    // Allow drawing with pen anytime, or any input when pencilMode is on
-    if(!isPen && !pencilMode) return;
-    const canvas = annotCanvasRef.current;
-    if(!canvas) return;
-    e.preventDefault(); // prevent scroll/zoom for drawing
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
+  // Pen drawing via document-level listeners (avoids event conflicts with touch handlers)
+  const annotActiveRef = useRef(false); // true while pen is drawing
 
-    if(eraserOn && pencilMode) {
-      setAnnotations(prev => {
-        const strokes = prev[currentPage] || [];
-        const filtered = strokes.filter(s => {
-          return !s.points.some(p => Math.abs(p.x - x) < 0.02 && Math.abs(p.y - y) < 0.02);
+  useEffect(()=>{
+    const onDown = (e) => {
+      const isPen = e.pointerType === 'pen';
+      if(!isPen && !pencilMode) return;
+      const canvas = annotCanvasRef.current;
+      if(!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      // Only draw if pointer is within the canvas bounds
+      if(x < 0 || x > 1 || y < 0 || y > 1) return;
+
+      if(isPen) { e.preventDefault(); e.stopPropagation(); }
+
+      if(eraserOn && pencilMode) {
+        setAnnotations(prev => {
+          const strokes = prev[currentPage] || [];
+          const filtered = strokes.filter(s =>
+            !s.points.some(p => Math.abs(p.x - x) < 0.025 && Math.abs(p.y - y) < 0.025)
+          );
+          return {...prev, [currentPage]: filtered};
         });
-        return {...prev, [currentPage]: filtered};
-      });
-      return;
-    }
+        return;
+      }
 
-    annotDrawing.current = true;
-    annotCurrent.current = [{x, y}];
-  };
+      annotActiveRef.current = true;
+      annotDrawing.current = true;
+      annotCurrent.current = [{x, y}];
+    };
 
-  const handleAnnotPointerMove = (e) => {
-    if(!annotDrawing.current) return;
-    const isPen = e.pointerType === 'pen';
-    if(!isPen && !pencilMode) return;
-    if(eraserOn && pencilMode) return;
-    e.preventDefault();
-    const canvas = annotCanvasRef.current;
-    if(!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    annotCurrent.current.push({x, y});
+    const onMove = (e) => {
+      if(!annotDrawing.current) return;
+      const isPen = e.pointerType === 'pen';
+      if(!isPen && !pencilMode) { annotDrawing.current = false; return; }
+      if(eraserOn && pencilMode) return;
+      const canvas = annotCanvasRef.current;
+      if(!canvas) return;
+      if(isPen) { e.preventDefault(); e.stopPropagation(); }
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      annotCurrent.current.push({x, y});
 
-    const ctx = canvas.getContext('2d');
-    const pts = annotCurrent.current;
-    if(pts.length >= 2) {
-      const prev = pts[pts.length - 2];
-      ctx.beginPath();
-      ctx.strokeStyle = pencilColor;
-      ctx.lineWidth = pencilWidth;
-      ctx.lineCap = 'round';
-      ctx.moveTo(prev.x * canvas.width, prev.y * canvas.height);
-      ctx.lineTo(x * canvas.width, y * canvas.height);
-      ctx.stroke();
-    }
-  };
+      const ctx = canvas.getContext('2d');
+      const pts = annotCurrent.current;
+      if(pts.length >= 2) {
+        const prev = pts[pts.length - 2];
+        ctx.beginPath();
+        ctx.strokeStyle = pencilColor;
+        ctx.lineWidth = pencilWidth;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.moveTo(prev.x * canvas.width, prev.y * canvas.height);
+        ctx.lineTo(x * canvas.width, y * canvas.height);
+        ctx.stroke();
+      }
+    };
 
-  const handleAnnotPointerUp = () => {
-    if(!annotDrawing.current) return;
-    annotDrawing.current = false;
-    if(annotCurrent.current.length >= 2) {
-      const newStroke = {points: [...annotCurrent.current], color: pencilColor, width: pencilWidth};
-      setAnnotations(prev => ({
-        ...prev,
-        [currentPage]: [...(prev[currentPage]||[]), newStroke],
-      }));
-    }
-    annotCurrent.current = [];
-  };
+    const onUp = (e) => {
+      if(!annotDrawing.current) return;
+      annotDrawing.current = false;
+      annotActiveRef.current = false;
+      if(annotCurrent.current.length >= 2) {
+        const newStroke = {points: [...annotCurrent.current], color: pencilColor, width: pencilWidth};
+        setAnnotations(prev => ({
+          ...prev,
+          [currentPage]: [...(prev[currentPage]||[]), newStroke],
+        }));
+      }
+      annotCurrent.current = [];
+    };
+
+    document.addEventListener('pointerdown', onDown, {capture: true});
+    document.addEventListener('pointermove', onMove, {capture: true});
+    document.addEventListener('pointerup', onUp, {capture: true});
+    document.addEventListener('pointercancel', onUp, {capture: true});
+    return () => {
+      document.removeEventListener('pointerdown', onDown, {capture: true});
+      document.removeEventListener('pointermove', onMove, {capture: true});
+      document.removeEventListener('pointerup', onUp, {capture: true});
+      document.removeEventListener('pointercancel', onUp, {capture: true});
+    };
+  },[pencilMode, eraserOn, pencilColor, pencilWidth, currentPage, annotations]);
 
   // Export annotated PDF
   const [exportingScore, setExportingScore] = useState(false);
@@ -1872,21 +1893,37 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         });
       }
       const { jsPDF } = window.jspdf;
-      const firstImg = await new Promise((res,rej)=>{
-        const im=new Image(); im.crossOrigin='anonymous';
-        im.onload=()=>res(im); im.onerror=rej; im.src=pageImages[0];
-      });
-      const imgAspect = firstImg.naturalWidth / firstImg.naturalHeight;
+
+      // Helper: load image as blob URL to avoid CORS taint
+      const loadImg = async (src) => {
+        try {
+          const resp = await fetch(src);
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          const im = await new Promise((res,rej)=>{
+            const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url;
+          });
+          return {im, url};
+        } catch(e) {
+          // Fallback: load directly (may taint canvas)
+          const im = await new Promise((res,rej)=>{
+            const i=new Image(); i.crossOrigin='anonymous';
+            i.onload=()=>res(i); i.onerror=rej; i.src=src;
+          });
+          return {im, url:null};
+        }
+      };
+
+      const first = await loadImg(pageImages[0]);
+      const imgAspect = first.im.naturalWidth / first.im.naturalHeight;
       const pdf = new jsPDF({orientation: imgAspect>1?'landscape':'portrait', unit:'pt', format:'letter'});
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
+      if(first.url) URL.revokeObjectURL(first.url);
 
       for(let p=0; p<pageImages.length; p++) {
         if(p > 0) pdf.addPage();
-        const img = await new Promise((res,rej)=>{
-          const im=new Image(); im.crossOrigin='anonymous';
-          im.onload=()=>res(im); im.onerror=rej; im.src=pageImages[p];
-        });
+        const {im: img, url: blobUrl} = await loadImg(pageImages[p]);
         const canvas = document.createElement('canvas');
         const scale = 2;
         canvas.width = img.naturalWidth * scale;
@@ -1895,6 +1932,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         ctx.fillStyle = 'white';
         ctx.fillRect(0,0,canvas.width,canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        if(blobUrl) URL.revokeObjectURL(blobUrl);
         // Overlay annotations
         (annotations[p]||[]).forEach(s=>{
           if(s.points.length<2) return;
@@ -3135,16 +3173,6 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             WebkitTapHighlightColor:'transparent',
           }}>CLEAR</button>
 
-          {/* Export annotated PDF */}
-          <button onClick={exportAnnotatedPdf} disabled={exportingScore} style={{
-            background: exportingScore ? 'rgba(74,120,255,0.4)' : 'rgba(74,120,255,0.25)',
-            border:'1px solid rgba(74,120,255,0.5)',
-            borderRadius:8,padding:'4px 10px',
-            fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.7rem',
-            letterSpacing:'0.06em',color:'#fff',cursor: exportingScore?'wait':'pointer',
-            WebkitTapHighlightColor:'transparent',
-          }}>{exportingScore?'...':'📄 EXPORT'}</button>
-
           {/* Close */}
           <button onClick={()=>setPencilMode(false)} style={{
             background:'transparent',
@@ -3176,11 +3204,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
             WebkitTapHighlightColor:'transparent',
           }}>›</button>
         )}
-        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}
-          onPointerDown={handleAnnotPointerDown}
-          onPointerMove={handleAnnotPointerMove}
-          onPointerUp={handleAnnotPointerUp}
-          onPointerLeave={handleAnnotPointerUp}>
+        <div style={{position:'relative',flex:1,minWidth:0,overflow:'hidden'}}>
           <img data-page={currentPage} src={pageImages[currentPage]}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -3334,6 +3358,15 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
                 letterSpacing:'0.06em',cursor:'pointer',
                 WebkitTapHighlightColor:'transparent',
               }}>{showTempoTrackers ? '♩ TEMPO TRACKER ON' : '♩ TEMPO TRACKER'}</button>
+              <button onClick={exportAnnotatedPdf} disabled={exportingScore} style={{
+                background: exportingScore ? 'rgba(74,120,255,0.18)' : 'rgba(74,120,255,0.08)',
+                border: `1px solid ${exportingScore ? 'rgba(74,120,255,0.35)' : 'rgba(74,120,255,0.18)'}`,
+                color: exportingScore ? '#4a78ff' : '#6b8fdf',
+                padding:'4px 10px',borderRadius:12,
+                fontFamily:"'Bebas Neue',sans-serif",fontSize:'0.65rem',
+                letterSpacing:'0.08em',cursor: exportingScore?'wait':'pointer',
+                WebkitTapHighlightColor:'transparent',
+              }}>{exportingScore ? '📄 EXPORTING...' : '📄 EXPORT PDF'}</button>
             </>)}
           </div>
           <div style={{textAlign:'center',flex:1,minWidth:0}}>
