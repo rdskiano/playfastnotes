@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { jsPDF } from "jspdf";
 
 /* ═══════════════════════════════════════════════════════════════════════
    SUPABASE
@@ -1859,18 +1860,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     setExportingScore(true);
     let step = 'init';
     try {
-      step = 'loading jsPDF';
-      if(!window.jspdf) {
-        await new Promise((res,rej)=>{
-          const s=document.createElement('script');
-          s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js';
-          s.onload=res; s.onerror=()=>rej(new Error('CDN load failed'));
-          document.head.appendChild(s);
-        });
-      }
-      const { jsPDF } = window.jspdf;
-
-      step = 'fetching first image';
+      step = 'creating PDF';
       const loadImg = async (src) => {
         const resp = await fetch(src);
         if(!resp.ok) throw new Error('fetch status '+resp.status);
@@ -1885,6 +1875,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         return {im, url};
       };
 
+      step = 'fetching first image';
       const first = await loadImg(pageImages[0]);
       const aspect = first.im.naturalWidth / first.im.naturalHeight;
       if(first.url) URL.revokeObjectURL(first.url);
@@ -5138,16 +5129,7 @@ function MURScreen({ piece, pageImages, profile, savedExercise, tapPos, onBack, 
   const exportPdf = async () => {
     setExporting(true);
     try {
-      // Load jsPDF dynamically
-      if(!window.jspdf) {
-        await new Promise((res,rej)=>{
-          const s=document.createElement('script');
-          s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js';
-          s.onload=res; s.onerror=rej;
-          document.head.appendChild(s);
-        });
-      }
-      const { jsPDF } = window.jspdf;
+      // jsPDF imported at top of file
       const pdf = new jsPDF({orientation:'portrait', unit:'pt', format:'letter'});
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
