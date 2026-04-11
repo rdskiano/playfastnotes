@@ -1791,92 +1791,66 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
     return ()=>ro.disconnect();
   },[currentPage, drawAnnotations]);
 
-  // Pen drawing via document-level listeners (avoids event conflicts with touch handlers)
-  const annotActiveRef = useRef(false); // true while pen is drawing
+  const handleAnnotPointerDown = (e) => {
+    if(!pencilMode) return;
+    const canvas = annotCanvasRef.current;
+    if(!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
 
-  useEffect(()=>{
-    const onDown = (e) => {
-      const isPen = e.pointerType === 'pen';
-      if(!isPen && !pencilMode) return;
-      const canvas = annotCanvasRef.current;
-      if(!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
-      // Only draw if pointer is within the canvas bounds
-      if(x < 0 || x > 1 || y < 0 || y > 1) return;
+    if(eraserOn) {
+      setAnnotations(prev => {
+        const strokes = prev[currentPage] || [];
+        const filtered = strokes.filter(s =>
+          !s.points.some(p => Math.abs(p.x - x) < 0.02 && Math.abs(p.y - y) < 0.02)
+        );
+        return {...prev, [currentPage]: filtered};
+      });
+      return;
+    }
 
-      if(isPen) { e.preventDefault(); e.stopPropagation(); }
+    annotDrawing.current = true;
+    annotCurrent.current = [{x, y}];
+  };
 
-      if(eraserOn && pencilMode) {
-        setAnnotations(prev => {
-          const strokes = prev[currentPage] || [];
-          const filtered = strokes.filter(s =>
-            !s.points.some(p => Math.abs(p.x - x) < 0.025 && Math.abs(p.y - y) < 0.025)
-          );
-          return {...prev, [currentPage]: filtered};
-        });
-        return;
-      }
+  const handleAnnotPointerMove = (e) => {
+    if(!annotDrawing.current || !pencilMode || eraserOn) return;
+    const canvas = annotCanvasRef.current;
+    if(!canvas) return;
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    annotCurrent.current.push({x, y});
 
-      annotActiveRef.current = true;
-      annotDrawing.current = true;
-      annotCurrent.current = [{x, y}];
-    };
+    const ctx = canvas.getContext('2d');
+    const pts = annotCurrent.current;
+    if(pts.length >= 2) {
+      const prev = pts[pts.length - 2];
+      ctx.beginPath();
+      ctx.strokeStyle = pencilColor;
+      ctx.lineWidth = pencilWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.moveTo(prev.x * canvas.width, prev.y * canvas.height);
+      ctx.lineTo(x * canvas.width, y * canvas.height);
+      ctx.stroke();
+    }
+  };
 
-    const onMove = (e) => {
-      if(!annotDrawing.current) return;
-      const isPen = e.pointerType === 'pen';
-      if(!isPen && !pencilMode) { annotDrawing.current = false; return; }
-      if(eraserOn && pencilMode) return;
-      const canvas = annotCanvasRef.current;
-      if(!canvas) return;
-      if(isPen) { e.preventDefault(); e.stopPropagation(); }
-      const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
-      annotCurrent.current.push({x, y});
-
-      const ctx = canvas.getContext('2d');
-      const pts = annotCurrent.current;
-      if(pts.length >= 2) {
-        const prev = pts[pts.length - 2];
-        ctx.beginPath();
-        ctx.strokeStyle = pencilColor;
-        ctx.lineWidth = pencilWidth;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.moveTo(prev.x * canvas.width, prev.y * canvas.height);
-        ctx.lineTo(x * canvas.width, y * canvas.height);
-        ctx.stroke();
-      }
-    };
-
-    const onUp = (e) => {
-      if(!annotDrawing.current) return;
-      annotDrawing.current = false;
-      annotActiveRef.current = false;
-      if(annotCurrent.current.length >= 2) {
-        const newStroke = {points: [...annotCurrent.current], color: pencilColor, width: pencilWidth};
-        setAnnotations(prev => ({
-          ...prev,
-          [currentPage]: [...(prev[currentPage]||[]), newStroke],
-        }));
-      }
-      annotCurrent.current = [];
-    };
-
-    document.addEventListener('pointerdown', onDown, {capture: true});
-    document.addEventListener('pointermove', onMove, {capture: true});
-    document.addEventListener('pointerup', onUp, {capture: true});
-    document.addEventListener('pointercancel', onUp, {capture: true});
-    return () => {
-      document.removeEventListener('pointerdown', onDown, {capture: true});
-      document.removeEventListener('pointermove', onMove, {capture: true});
-      document.removeEventListener('pointerup', onUp, {capture: true});
-      document.removeEventListener('pointercancel', onUp, {capture: true});
-    };
-  },[pencilMode, eraserOn, pencilColor, pencilWidth, currentPage, annotations]);
+  const handleAnnotPointerUp = () => {
+    if(!annotDrawing.current) return;
+    annotDrawing.current = false;
+    if(annotCurrent.current.length >= 2) {
+      const newStroke = {points: [...annotCurrent.current], color: pencilColor, width: pencilWidth};
+      setAnnotations(prev => ({
+        ...prev,
+        [currentPage]: [...(prev[currentPage]||[]), newStroke],
+      }));
+    }
+    annotCurrent.current = [];
+  };
 
   // Export annotated PDF
   const [exportingScore, setExportingScore] = useState(false);
@@ -3190,7 +3164,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         {/* Floating page arrows */}
         {totalPages>1 && currentPage>0 && (
           <button onClick={()=>setCurrentPage(p=>showTwo?Math.max(0,p-2):p-1)} style={{
-            position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
+            position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',zIndex:20,
             background:'rgba(255,255,255,0.85)',border:'none',color:'#333',fontSize:'1.8rem',
             padding:'16px 10px',cursor:'pointer',borderRadius:'0 4px 4px 0',
             WebkitTapHighlightColor:'transparent',
@@ -3198,7 +3172,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
         )}
         {totalPages>1 && currentPage<totalPages-1 && !(showTwo && currentPage+2>=totalPages) && (
           <button onClick={()=>setCurrentPage(p=>showTwo?Math.min(totalPages-1,p+2):p+1)} style={{
-            position:'absolute',right:0,top:'50%',transform:'translateY(-50%)',zIndex:10,
+            position:'absolute',right:0,top:'50%',transform:'translateY(-50%)',zIndex:20,
             background:'rgba(255,255,255,0.85)',border:'none',color:'#333',fontSize:'1.8rem',
             padding:'16px 10px',cursor:'pointer',borderRadius:'4px 0 0 4px',
             WebkitTapHighlightColor:'transparent',
@@ -3215,7 +3189,7 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
               cursor: isInterleaved?'crosshair':'default'}}
             onContextMenu={e=>e.preventDefault()}
             draggable={false} />
-          {/* Annotation canvas — display only, pointer events off */}
+          {/* Annotation canvas */}
           <canvas ref={el=>{
             annotCanvasRef.current=el;
             if(el){
@@ -3224,10 +3198,16 @@ function ScoreViewScreen({ piece, pageImages, currentPage, setCurrentPage,
               drawAnnotations(el, currentPage);
             }
           }}
+            onPointerDown={handleAnnotPointerDown}
+            onPointerMove={handleAnnotPointerMove}
+            onPointerUp={handleAnnotPointerUp}
+            onPointerLeave={handleAnnotPointerUp}
             style={{
               position:'absolute',top:0,left:0,width:'100%',height:'100%',
-              pointerEvents:'none',
-              zIndex:5,
+              pointerEvents: pencilMode ? 'auto' : 'none',
+              touchAction: pencilMode ? 'none' : 'auto',
+              cursor: pencilMode ? (eraserOn ? 'cell' : 'crosshair') : 'default',
+              zIndex: pencilMode ? 15 : 5,
             }}
           />
           {isInterleaved && interleavedSpots.filter(s=>s.page===currentPage).map(spot=>(
